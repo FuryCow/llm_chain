@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    llm_chain (0.1.0)
+    llm_chain (0.2.0)
       faraday (~> 2.7)
       faraday-net_http
       httparty

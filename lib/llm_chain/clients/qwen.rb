@@ -19,14 +19,12 @@ module LLMChain
         }
       }.freeze
 
-      # Общие параметры для всех версий Qwen
       COMMON_DEFAULT_OPTIONS = {
         temperature: 0.7,
         top_p: 0.9,
         repeat_penalty: 1.1
       }.freeze
 
-      # Специфичные параметры для разных версий
       VERSION_SPECIFIC_OPTIONS = {
         qwen: {
           num_gqa: 8,
@@ -37,7 +35,6 @@ module LLMChain
         }
       }.freeze
 
-      # Теги для очистки ответов
       INTERNAL_TAGS = {
         common: {
           think: /<think>.*?<\/think>\s*/mi,
@@ -143,7 +140,6 @@ module LLMChain
       end
 
       def clean_response(text)
-        # Общие теги + специфичные для версии
         tags = INTERNAL_TAGS[:common].merge(INTERNAL_TAGS[model_version] || {})
         tags.values.reduce(text) do |processed, regex|
           processed.gsub(regex, '')

@@ -45,12 +45,8 @@ basic example:
 ```ruby
 require 'llm_chain'
 
-# Initialize client
-client = LLMChain::Clients::Qwen.new
-
-# Simple chat
-response = client.chat("Explain quantum entanglement")
-puts response
+memory = LLMChain::Memory::Array.new(max_size: 1)
+chain = LLMChain::Chain.new(model: "qwen3:1.7b", memory: memory)
 ```
 
 Model-specific Clients:
@@ -58,21 +54,17 @@ Model-specific Clients:
 ```ruby
 # Qwen with custom options
 qwen = LLMChain::Clients::Qwen.new(
-  model: "qwen:14b",
+  model: "qwen3:1.7b",
   temperature: 0.8,
   top_p: 0.95
 )
 puts qwen.chat("Write Ruby code for Fibonacci sequence")
-
-# Llama2 with context length
-llama = LLMChain::Clients::Llama2.new(num_ctx: 4096)
-llama.chat("Explain the CAP theorem")
 ```
 
 Streaming Responses:
 
 ```ruby
-LLMChain::Clients::Mistral.new.stream_chat("Describe UNIX architecture") do |chunk|
+LLMChain::Chain.new(model: "qwen3:1.7b").ask('How are you?', stream: true) do |chunk|
   print chunk
 end
 ```
@@ -81,9 +73,8 @@ Chain pattern:
 
 ```ruby
 chain = LLMChain::Chain.new(
-  model: "llama2:70b",
-  memory: LLMChain::Memory::Redis.new,
-  tools: [CalculatorTool, WebSearchTool]
+  model: "qwen3:1.7b",
+  memory: LLMChain::Memory::Array.new
 )
 
 # Conversation with context
@@ -93,15 +84,15 @@ chain.ask("Now multiply that by 5")
 
 ## Supported models
 
-OpenAI - Web
-LLama2 - ollama
-Qwen - ollama
+OpenAI - Web\n
+LLama2 - ollama\n
+Qwen/Qwen3 - ollama\n
 
 ## Error handling
 
 ```ruby
 begin
-  client.chat("Explain DNS")
+  chain.ask("Explain DNS")
 rescue LLMChain::Error => e
   puts "Error: #{e.message}"
   # Auto-fallback logic can be implemented here
