@@ -3,7 +3,7 @@ require 'json'
 
 module LLMChain
   module Clients
-    class OllamaBase
+    class OllamaBase < Base
       DEFAULT_BASE_URL = "http://localhost:11434".freeze
       API_ENDPOINT = "/api/generate".freeze
 
@@ -34,7 +34,7 @@ module LLMChain
         {
           model: @model,
           prompt: prompt,
-          stream: false,
+          stream: options[:stream] || false,
           options: @default_options.merge(options)
         }
       end

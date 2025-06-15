@@ -7,14 +7,19 @@ module LLMChain
     end
 
     def self.client_for(model, **options)
-      case model
-      when /gpt/
-        Clients::OpenAI.new(**options.merge(model: model))
+      puts model
+      instance = case model
+      when /gpt|openai/
+        Clients::OpenAI
       when /qwen/
-        Clients::Qwen.new(**options.merge(model: model))
+        Clients::Qwen
+      when /llama2/
+        Clients::Llama2
       else
-        raise ArgumentError, "Unknown model: #{model}"
+        raise UnknownModelError, "Unknown model: #{model}"
       end
+
+      instance.new(**options.merge(model: model))
     end
   end
 end

@@ -1,10 +1,13 @@
-# lib/llm_chain.rb
 require "llm_chain/version"
 require "faraday"
 require "json"
 
 module LLMChain
   class Error < StandardError; end
+  class UnknownModelError < Error; end
+  class ClientError < Error; end
+  class ServerError < Error; end
+  class TimeoutError < Error; end
 end
 
 require "llm_chain/clients/base"

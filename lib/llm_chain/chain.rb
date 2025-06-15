@@ -5,7 +5,7 @@ module LLMChain
     # @param model [String] Имя модели (gpt-4, llama3 и т.д.)
     # @param memory [#recall, #store] Объект памяти (по умолчанию: Memory::Array)
     # @param tools [Array<Tool>] Массив инструментов
-    def initialize(model: "gpt-3.5-turbo", memory: nil, tools: [], **client_options)
+    def initialize(model: nil, memory: nil, tools: [], **client_options)
       @model = model
       @memory = memory || Memory::Array.new
       @tools = tools
@@ -39,9 +39,24 @@ module LLMChain
     # Построение итогового промпта
     def build_prompt(prompt, context, tool_responses)
       parts = []
-      parts << "Контекст: #{context}" if context
-      parts << "Инструменты: #{tool_responses}" unless tool_responses.empty?
-      parts << "Запрос: #{prompt}"
+      
+      # Добавляем историю диалога
+      if context.any?
+        parts << "История диалога:"
+        context.each do |item|
+          parts << "Вопрос: #{item[:prompt]}"
+          parts << "Ответ: #{item[:response]}"
+        end
+      end
+      
+      # Добавляем результаты инструментов
+      unless tool_responses.empty?
+        parts << "Данные инструментов: #{tool_responses.to_json}"
+      end
+      
+      # Добавляем текущий запрос
+      parts << "Текущий запрос: #{prompt}"
+      
       parts.join("\n\n")
     end
 
