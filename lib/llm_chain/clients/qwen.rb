@@ -92,10 +92,9 @@ module LLMChain
 
       def build_request_body(prompt, options)
         body = super
-        puts body
-        # Добавляем специфичные для версии параметры
         version_specific_options = VERSION_SPECIFIC_OPTIONS[model_version]
         body[:options].merge!(version_specific_options) if version_specific_options
+        puts body
         body
       end
 
@@ -112,7 +111,7 @@ module LLMChain
       def validate_model_version(model)
         valid_models = MODEL_VERSIONS.values.flat_map { |v| v[:versions] }
         unless valid_models.include?(model)
-          raise ArgumentError, "Invalid model version. Available: #{valid_models.join(', ')}"
+          raise InvalidModelVersion, "Invalid model version. Available: #{valid_models.join(', ')}"
         end
       end
 

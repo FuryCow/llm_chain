@@ -34,6 +34,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "faraday", "~> 2.7"
   spec.add_dependency "faraday-net_http"
   spec.add_dependency "json"
+  spec.add_dependency "weaviate-ruby", "0.9.1"
 
   spec.add_development_dependency "rspec", "~> 3.0"
 end
