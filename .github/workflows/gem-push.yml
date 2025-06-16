@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build + Publish
-    runs-on: ubuntu-latest  # Это гарантирует использование GitHub-hosted runner
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -17,12 +17,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # Установка Ruby с использованием актуальной версии setup-ruby
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 3.2.2  # Убедитесь, что эта версия поддерживается
-        bundler-cache: true  # Опционально: кэширование gems
+        ruby-version: 3.2.2
+        bundler-cache: true
 
     - name: Install dependencies
       run: bundle install
@@ -42,12 +41,7 @@ jobs:
         OWNER: ${{ github.repository_owner }}
 
     - name: Publish to RubyGems
-      if: success()  # Публиковать в RubyGems только если предыдущий шаг успешен
-      run: |
-        mkdir -p $HOME/.gem
-        touch $HOME/.gem/credentials
-        chmod 0600 $HOME/.gem/credentials
-        printf -- "---\n:rubygems_api_key: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
-        gem push *.gem
+      if: success()
+      run: gem push *.gem
       env:
         GEM_HOST_API_KEY: "${{secrets.RUBYGEMS_AUTH_TOKEN}}"
