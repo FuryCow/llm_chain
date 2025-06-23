@@ -15,6 +15,8 @@ module LLMChain
         Clients::Qwen
       when /llama2/
         Clients::Llama2
+      when /gemma3/
+        Clients::Gemma3
       else
         raise UnknownModelError, "Unknown model: #{model}"
       end

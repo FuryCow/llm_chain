@@ -46,7 +46,9 @@ basic example:
 require 'llm_chain'
 
 memory = LLMChain::Memory::Array.new(max_size: 1)
-chain = LLMChain::Chain.new(model: "qwen3:1.7b", memory: memory)
+chain = LLMChain::Chain.new(model: "qwen3:1.7b", memory: memory, retriever: false)
+# retriever: false is required when you don't use a vector database to store context or external data
+# reitriever: - is set to WeaviateRetriever.new as default  so you need to pass an external params to set Weaviate host
 puts chain.ask("What is 2+2?")
 ```
 

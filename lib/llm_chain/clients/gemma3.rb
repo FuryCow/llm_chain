@@ -3,48 +3,44 @@ require 'json'
 
 module LLMChain
   module Clients
-    class Qwen < OllamaBase
-      # Доступные версии моделей
+    class Gemma3 < OllamaBase
+      # Доступные версии моделей Gemma3
       MODEL_VERSIONS = {
-        qwen: {
-          default: "qwen:7b",
-          versions: ["qwen:7b", "qwen:14b", "qwen:72b", "qwen:0.5b"]
-        },
-        qwen3: {
-          default: "qwen3:latest",
+        gemma3: {
+          default: "gemma3:2b",
           versions: [
-            "qwen3:latest", "qwen3:0.6b", "qwen3:1.7b", "qwen3:4b",
-            "qwen3:8b", "qwen3:14b", "qwen3:30b", "qwen3:32b", "qwen3:235b"
+            "gemma3:2b", "gemma3:8b", "gemma3:27b",
+            "gemma3:2b-instruct", "gemma3:8b-instruct", "gemma3:27b-instruct", "gemma3:4b"
           ]
         }
       }.freeze
 
+      # Общие настройки по умолчанию для Gemma3
       COMMON_DEFAULT_OPTIONS = {
         temperature: 0.7,
         top_p: 0.9,
-        repeat_penalty: 1.1
+        top_k: 40,
+        repeat_penalty: 1.1,
+        num_ctx: 8192
       }.freeze
 
+      # Специфичные настройки для разных версий
       VERSION_SPECIFIC_OPTIONS = {
-        qwen: {
-          num_gqa: 8,
-          stop: ["<|im_end|>", "<|endoftext|>"]
-        },
-        qwen3: {
-          num_ctx: 4096
+        gemma3: {
+          stop: ["<|im_end|>", "<|endoftext|>", "<|user|>", "<|assistant|>"]
         }
       }.freeze
 
+      # Внутренние теги для очистки ответов
       INTERNAL_TAGS = {
         common: {
           think: /<think>.*?<\/think>\s*/mi,
           reasoning: /<reasoning>.*?<\/reasoning>\s*/mi
         },
-        qwen: {
-          system: /<\|system\|>.*?<\|im_end\|>\s*/mi
-        },
-        qwen3: {
-          qwen_meta: /<qwen_meta>.*?<\/qwen_meta>\s*/mi
+        gemma3: {
+          system: /<\|system\|>.*?<\|im_end\|>\s*/mi,
+          user: /<\|user\|>.*?<\|im_end\|>\s*/mi,
+          assistant: /<\|assistant\|>.*?<\|im_end\|>\s*/mi
         }
       }.freeze
 
@@ -92,7 +88,7 @@ module LLMChain
 
       def build_request_body(prompt, options)
         body = super
-        version_specific_options = VERSION_SPECIFIC_OPTIONS[model_version]  
+        version_specific_options = VERSION_SPECIFIC_OPTIONS[model_version]
         body[:options].merge!(version_specific_options) if version_specific_options
         body
       end
@@ -100,7 +96,7 @@ module LLMChain
       private
 
       def model_version
-        @model.start_with?('qwen3:') ? :qwen3 : :qwen
+        :gemma3
       end
 
       def detect_default_model
@@ -110,7 +106,7 @@ module LLMChain
       def validate_model_version(model)
         valid_models = MODEL_VERSIONS.values.flat_map { |v| v[:versions] }
         unless valid_models.include?(model)
-          raise InvalidModelVersion, "Invalid model version. Available: #{valid_models.join(', ')}"
+          raise InvalidModelVersion, "Invalid Gemma3 model version. Available: #{valid_models.join(', ')}"
         end
       end
 
@@ -145,4 +141,4 @@ module LLMChain
       end
     end
   end
-end
+end 

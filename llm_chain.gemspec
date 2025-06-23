@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.authors = ["FuryCow"]
   spec.email = ["dreamweaver0408@gmail.com"]
 
-  spec.summary = "Ruby-аналог LangChain для работы с LLM"
+  spec.summary = "Ruby-analog LangChain to work with LLM"
   spec.homepage = "https://github.com/FuryCow/llm_chain"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"

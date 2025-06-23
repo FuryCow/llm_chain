@@ -13,7 +13,13 @@ module LLMChain
       @model = model
       @memory = memory || Memory::Array.new
       @tools = tools
-      @retriever = retriever || Embeddings::Clients::Local::WeaviateRetriever.new
+      @retriever = if retriever.nil?
+                    Embeddings::Clients::Local::WeaviateRetriever.new
+                  elsif retriever == false
+                    nil
+                  else
+                    retriever
+                  end
       @client = ClientRegistry.client_for(model, **client_options)
     end
 
@@ -24,25 +30,18 @@ module LLMChain
     # @param rag_options [Hash] Опции для RAG-поиска
     # @yield [String] Передает чанки ответа если stream=true
     def ask(prompt, stream: false, rag_context: false, rag_options: {}, &block)
-      # 1. Сбор контекста
+      context = collect_context(prompt, rag_context, rag_options)
+      full_prompt = build_prompt(prompt: prompt, **context)
+      response = generate_response(full_prompt, stream: stream, &block)
+      memory.store(prompt, response)
+      response
+    end
+
+    def collect_context(prompt, rag_context, rag_options)
       context = memory.recall(prompt)
       tool_responses = process_tools(prompt)
       rag_documents = retrieve_rag_context(prompt, rag_options) if rag_context
-
-      # 2. Построение промпта
-      full_prompt = build_prompt(
-        prompt: prompt,
-        memory_context: context,
-        tool_responses: tool_responses,
-        rag_documents: rag_documents
-      )
-
-      # 3. Генерация ответа
-      response = generate_response(full_prompt, stream: stream, &block)
-
-      # 4. Сохранение в память
-      memory.store(prompt, response)
-      response
+      { memory_context: context, tool_responses: tool_responses, rag_documents: rag_documents }
     end
 
     private
@@ -53,8 +52,7 @@ module LLMChain
       limit = options[:limit] || 3
       @retriever.search(query, limit: limit)
     rescue => e
-      puts "[RAG Error] #{e.message}"
-      []
+      raise Error, "Cannot retrieve rag context"
     end
 
     def process_tools(prompt)
@@ -68,33 +66,37 @@ module LLMChain
 
     def build_prompt(prompt:, memory_context: nil, tool_responses: {}, rag_documents: nil)
       parts = []
-
-      if memory_context&.any?
-        parts << "Dialogue history:"
-        memory_context.each do |item|
-          parts << "User: #{item[:prompt]}"
-          parts << "Assistant: #{item[:response]}"
-        end
-      end
-
-      if rag_documents&.any?
-        parts << "Relevant documents:"
-        rag_documents.each_with_index do |doc, i|
-          parts << "Document #{i + 1}: #{doc['content']}"
-          parts << "Metadata: #{doc['metadata'].to_json}" if doc['metadata']
-        end
-      end
-
-      unless tool_responses.empty?
-        parts << "Tool results:"
-        tool_responses.each do |name, response|
-          parts << "#{name}: #{response}"
-        end
-      end
-
-      parts << "Qurrent question: #{prompt}"
-
+      parts << build_memory_context(memory_context) if memory_context&.any?
+      parts << build_rag_documents(rag_documents) if rag_documents&.any?
+      parts << build_tool_responses(tool_responses) unless tool_responses.empty?
+      parts << "Сurrent question: #{prompt}"
       parts.join("\n\n")
+    end
+
+    def build_memory_context(memory_context)
+      parts = ["Dialogue history:"]
+      memory_context.each do |item|
+        parts << "User: #{item[:prompt]}"
+        parts << "Assistant: #{item[:response]}"
+      end
+      parts.join("\n")
+    end
+
+    def build_rag_documents(rag_documents)
+      parts = ["Relevant documents:"]
+      rag_documents.each_with_index do |doc, i|
+        parts << "Document #{i + 1}: #{doc['content']}"
+        parts << "Metadata: #{doc['metadata'].to_json}" if doc['metadata']
+      end
+      parts.join("\n")
+    end
+
+    def build_tool_responses(tool_responses)
+      parts = ["Tool results:"]
+      tool_responses.each do |name, response|
+        parts << "#{name}: #{response}"
+      end
+      parts.join("\n")
     end
 
     def generate_response(prompt, stream: false, &block)
