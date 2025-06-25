@@ -1,192 +1,555 @@
-# LLMChain
-
-A Ruby gem for interacting with Large Language Models (LLMs) through a unified interface, with native Ollama and local model support.
+# 🦾 LLMChain
 
 [![Gem Version](https://badge.fury.io/rb/llm_chain.svg)](https://badge.fury.io/rb/llm_chain)
-[![Tests](https://github.com/your_username/llm_chain/actions/workflows/tests.yml/badge.svg)](https://github.com/your_username/llm_chain/actions)
+[![Tests](https://github.com/FuryCow/llm_chain/actions/workflows/tests.yml/badge.svg)](https://github.com/FuryCow/llm_chain/actions)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
-## Features
+**A powerful Ruby library for working with Large Language Models (LLMs) with intelligent tool system**
 
-- Unified interface for multiple LLMs (Qwen, Llama2, Mistral, etc.)
-- Native [Ollama](https://ollama.ai/) integration for local models
-- Prompt templating system
-- Streaming response support
-- RAG-ready with vector database integration
-- Automatic model verification
+LLMChain is a Ruby analog of LangChain, providing a unified interface for interacting with various LLMs, built-in tool system, and RAG (Retrieval-Augmented Generation) support.
 
-## Installation
+## ✨ Key Features
 
-Add to your Gemfile:
+- 🤖 **Unified API** for multiple LLMs (OpenAI, Ollama, Qwen, LLaMA2, Gemma)
+- 🛠️ **Intelligent tool system** with automatic selection
+- 🧮 **Built-in tools**: Calculator, web search, code interpreter
+- 🔍 **RAG-ready** with vector database integration
+- 💾 **Flexible memory system** (Array, Redis)
+- 🌊 **Streaming output** for real-time responses
+- 🏠 **Local models** via Ollama
+- 🔧 **Extensible architecture** for custom tools
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+gem install llm_chain
+```
+
+Or add to Gemfile:
 
 ```ruby
 gem 'llm_chain'
 ```
-Or install directly:
 
-```
-gem install llm_chain
-```
+### Prerequisites
 
-## Prerequisites
-Install [Ollama](https://ollama.ai/)
+1. **Install Ollama** for local models:
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Download models
+   ollama pull qwen3:1.7b
+   ollama pull llama2:7b
+   ```
 
-Pull desired models:
+2. **Optional**: API keys for external services
+   ```bash
+   export OPENAI_API_KEY="your-key"
+   export SEARCH_API_KEY="your-key"
+   ```
 
-```bash
-ollama pull qwen:7b
-ollama pull llama2:13b
-```
-
-## Usage
-
-basic example:
+### Simple Example
 
 ```ruby
 require 'llm_chain'
 
-memory = LLMChain::Memory::Array.new(max_size: 1)
-chain = LLMChain::Chain.new(model: "qwen3:1.7b", memory: memory, retriever: false)
-# retriever: false is required when you don't use a vector database to store context or external data
-# reitriever: - is set to WeaviateRetriever.new as default  so you need to pass an external params to set Weaviate host
-puts chain.ask("What is 2+2?")
+# Basic usage
+chain = LLMChain::Chain.new(model: "qwen3:1.7b")
+response = chain.ask("Hello! How are you?")
+puts response
 ```
 
-Using redis as redistributed memory store:
+## 🛠️ Tool System
+
+### Automatic Tool Usage
 
 ```ruby
-# redis_url: 'redis://localhost:6379' is default or either set REDIS_URL env var
-# max_size: 10 is default
-# namespace: 'llm_chain' is default
-memory = LLMChain::Memory::Redis.new(redis_url: 'redis://localhost:6379', max_size: 10, namespace: 'my_app')
-
-chain = LLMChain::Chain.new(model: "qwen3:1.7b", memory: memory)
-puts chain.ask("What is 2+2?")
-```
-
-Model-specific Clients:
-
-```ruby
-# Qwen with custom options (Without RAG support)
-qwen = LLMChain::Clients::Qwen.new(
+# Create chain with tools
+tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+chain = LLMChain::Chain.new(
   model: "qwen3:1.7b",
+  tools: tool_manager
+)
+
+# Tools are selected automatically
+chain.ask("Calculate 15 * 7 + 32")
+# 🧮 Automatically uses calculator
+
+chain.ask("Find information about Ruby 3.2")
+# 🔍 Automatically uses web search
+
+chain.ask("Execute code: puts (1..10).sum")
+# 💻 Automatically uses code interpreter
+```
+
+### Built-in Tools
+
+#### 🧮 Calculator
+```ruby
+calculator = LLMChain::Tools::Calculator.new
+result = calculator.call("Find square root of 144")
+puts result[:formatted]
+# Output: sqrt(144) = 12.0
+```
+
+#### 🌐 Web Search
+```ruby
+search = LLMChain::Tools::WebSearch.new
+results = search.call("Latest Ruby news")
+puts results[:formatted]
+```
+
+#### 💻 Code Interpreter
+```ruby
+interpreter = LLMChain::Tools::CodeInterpreter.new
+result = interpreter.call(<<~CODE)
+  ```ruby
+  def factorial(n)
+    n <= 1 ? 1 : n * factorial(n - 1)
+  end
+  puts factorial(5)
+  ```
+CODE
+puts result[:formatted]
+```
+
+### Creating Custom Tools
+
+```ruby
+class WeatherTool < LLMChain::Tools::BaseTool
+  def initialize(api_key:)
+    @api_key = api_key
+    super(
+      name: "weather",
+      description: "Gets weather information",
+      parameters: {
+        location: { 
+          type: "string", 
+          description: "City name" 
+        }
+      }
+    )
+  end
+
+  def match?(prompt)
+    contains_keywords?(prompt, ['weather', 'temperature', 'forecast'])
+  end
+
+  def call(prompt, context: {})
+    location = extract_location(prompt)
+    # Your weather API integration
+    {
+      location: location,
+      temperature: "22°C",
+      condition: "Sunny",
+      formatted: "Weather in #{location}: 22°C, Sunny"
+    }
+  end
+
+  private
+
+  def extract_location(prompt)
+    prompt.scan(/in\s+(\w+)/i).flatten.first || "Unknown"
+  end
+end
+
+# Usage
+weather = WeatherTool.new(api_key: "your-key")
+tool_manager.register_tool(weather)
+```
+
+## 🤖 Supported Models
+
+| Model Family | Backend | Status | Notes |
+|--------------|---------|--------|-------|
+| **OpenAI** | Web API | ✅ Supported | GPT-3.5, GPT-4, GPT-4 Turbo |
+| **Qwen/Qwen2** | Ollama | ✅ Supported | 0.5B - 72B parameters |
+| **LLaMA2/3** | Ollama | ✅ Supported | 7B, 13B, 70B |
+| **Gemma** | Ollama | ✅ Supported | 2B, 7B, 9B, 27B |
+| **Mistral/Mixtral** | Ollama | 🔄 In development | 7B, 8x7B |
+| **Claude** | Anthropic | 🔄 Planned | Haiku, Sonnet, Opus |
+| **Command R+** | Cohere | 🔄 Planned | Optimized for RAG |
+
+### Model Usage Examples
+
+```ruby
+# OpenAI
+openai_chain = LLMChain::Chain.new(
+  model: "gpt-4",
+  api_key: ENV['OPENAI_API_KEY']
+)
+
+# Qwen via Ollama
+qwen_chain = LLMChain::Chain.new(model: "qwen3:1.7b")
+
+# LLaMA via Ollama with settings
+llama_chain = LLMChain::Chain.new(
+  model: "llama2:7b",
   temperature: 0.8,
   top_p: 0.95
 )
-puts qwen.chat("Write Ruby code for Fibonacci sequence")
 ```
 
-Streaming Responses:
+## 💾 Memory System
 
+### Array Memory (default)
 ```ruby
-LLMChain::Chain.new(model: "qwen3:1.7b").ask('How are you?', stream: true) do |chunk|
-  print chunk
-end
-```
-
-Chain pattern:
-
-```ruby
+memory = LLMChain::Memory::Array.new(max_size: 10)
 chain = LLMChain::Chain.new(
   model: "qwen3:1.7b",
-  memory: LLMChain::Memory::Array.new
+  memory: memory
 )
 
-# Conversation with context
-chain.ask("What's 2^10?")
-chain.ask("Now multiply that by 5")
+chain.ask("My name is Alex")
+chain.ask("What's my name?") # Remembers previous context
 ```
 
-## Supported Models
+### Redis Memory (for production)
+```ruby
+memory = LLMChain::Memory::Redis.new(
+  redis_url: 'redis://localhost:6379',
+  max_size: 100,
+  namespace: 'my_app'
+)
 
-| Model Family | Backend/Service | Notes |
-|-------------|----------------|-------|
-| OpenAI (GPT-3.5, GPT-4) | Web API | Supports all OpenAI API models (Not tested) |
-| LLaMA2 (7B, 13B, 70B) | Ollama | Local inference via Ollama |
-| Qwen/Qwen3 (0.5B-72B) | Ollama | Supports all Qwen model sizes |
-| Mistral/Mixtral | Ollama | Including Mistral 7B and Mixtral 8x7B (In progress) |
-| Gemma (2B, 7B) | Ollama | Google's lightweight models (In progress) |
-| Claude (Haiku, Sonnet, Opus) | Anthropic API | Web API access (In progress) |
-| Command R+ | Cohere API | Optimized for RAG (In progress) |
+chain = LLMChain::Chain.new(
+  model: "qwen3:1.7b",
+  memory: memory
+)
+```
 
-## Retrieval-Augmented Generation (RAG) 
+## 🔍 RAG (Retrieval-Augmented Generation)
+
+### Setting up RAG with Weaviate
 
 ```ruby
 # Initialize components
-embedder = LLMChain::Embeddings::Clients::Local::OllamaClient.new(model: "nomic-embed-text")
-rag_store = LLMChain::Embeddings::Clients::Local::WeaviateVectorStore.new(embedder: embedder, weaviate_url: 'http://localhost:8080') # Replace with your Weaviate URL if needed
-retriever = LLMChain::Embeddings::Clients::Local::WeaviateRetriever.new(embedder: embedder)
-memory = LLMChain::Memory::Array.new
-tools = []
-
-# Create chain
-chain = LLMChain::Chain.new(
-  model: "qwen3:1.7b",
-  memory: memory, # LLMChain::Memory::Array.new is default
-  tools: tools, # There is no tools supported yet
-  retriever: retriever # LLMChain::Embeddings::Clients::Local::WeaviateRetriever.new is default
+embedder = LLMChain::Embeddings::Clients::Local::OllamaClient.new(
+  model: "nomic-embed-text"
 )
 
-# simple Chain definition, with default settings
+vector_store = LLMChain::Embeddings::Clients::Local::WeaviateVectorStore.new(
+  embedder: embedder,
+  weaviate_url: 'http://localhost:8080'
+)
 
-simple_chain = LLMChain::Chain.new(model: "qwen3:1.7b")
+retriever = LLMChain::Embeddings::Clients::Local::WeaviateRetriever.new(
+  embedder: embedder
+)
 
-# Example of adding documents to vector database
+# Create chain with RAG
+chain = LLMChain::Chain.new(
+  model: "qwen3:1.7b",
+  retriever: retriever
+)
+```
+
+### Adding Documents
+
+```ruby
 documents = [
   {
-    text: "Ruby supports four OOP principles: encapsulation, inheritance, polymorphism and abstraction",
-    metadata: { source: "ruby-docs", page: 42 }
+    text: "Ruby supports OOP principles: encapsulation, inheritance, polymorphism",
+    metadata: { source: "ruby-guide", page: 15 }
   },
   {
     text: "Modules in Ruby are used for namespaces and mixins",
-    metadata: { source: "ruby-guides", author: "John Doe" }
-  },
-  {
-    text: "2 + 2 is equals to 4",
-    matadata: { source: 'mad_brain', author: 'John Doe' }
+    metadata: { source: "ruby-book", author: "Matz" }
   }
 ]
 
-# Ingest documents into Weaviate
+# Add to vector database
 documents.each do |doc|
-  rag_store.add_document(
+  vector_store.add_document(
     text: doc[:text],
     metadata: doc[:metadata]
   )
 end
+```
 
-# Simple query without RAG
-response = chain.ask("What is 2+2?", rag_context: false) # rag_context: false is default
-puts response
+### RAG Queries
 
-# Query with RAG context
+```ruby
+# Regular query
+response = chain.ask("What is Ruby?")
+
+# Query with RAG
 response = chain.ask(
   "What OOP principles does Ruby support?",
   rag_context: true,
   rag_options: { limit: 3 }
 )
-puts response
+```
 
-# Streamed response with RAG
-chain.ask("Explain Ruby modules", stream: true, rag_context: true) do |chunk|
+## 🌊 Streaming Output
+
+```ruby
+chain = LLMChain::Chain.new(model: "qwen3:1.7b")
+
+# Streaming with block
+chain.ask("Tell me about Ruby history", stream: true) do |chunk|
+  print chunk
+  $stdout.flush
+end
+
+# Streaming with tools
+tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+chain = LLMChain::Chain.new(
+  model: "qwen3:1.7b", 
+  tools: tool_manager
+)
+
+chain.ask("Calculate 15! and explain the process", stream: true) do |chunk|
   print chunk
 end
 ```
 
-## Error handling
+## ⚙️ Configuration
+
+### Environment Variables
+
+```bash
+# OpenAI
+export OPENAI_API_KEY="sk-..."
+export OPENAI_ORGANIZATION_ID="org-..."
+
+# Search
+export SEARCH_API_KEY="your-search-api-key"
+export GOOGLE_SEARCH_ENGINE_ID="your-cse-id"
+
+# Redis
+export REDIS_URL="redis://localhost:6379"
+
+# Weaviate
+export WEAVIATE_URL="http://localhost:8080"
+```
+
+### Tool Configuration
+
+```ruby
+# From configuration
+tools_config = [
+  { 
+    class: 'calculator' 
+  },
+  { 
+    class: 'web_search', 
+    options: { 
+      search_engine: :duckduckgo,
+      api_key: ENV['SEARCH_API_KEY']
+    } 
+  },
+  { 
+    class: 'code_interpreter', 
+    options: { 
+      timeout: 30,
+      allowed_languages: ['ruby', 'python']
+    } 
+  }
+]
+
+tool_manager = LLMChain::Tools::ToolManager.from_config(tools_config)
+```
+
+### Client Settings
+
+```ruby
+# Qwen with custom parameters
+qwen = LLMChain::Clients::Qwen.new(
+  model: "qwen2:7b",
+  temperature: 0.7,
+  top_p: 0.9,
+  base_url: "http://localhost:11434"
+)
+
+# OpenAI with settings
+openai = LLMChain::Clients::OpenAI.new(
+  model: "gpt-4",
+  api_key: ENV['OPENAI_API_KEY'],
+  temperature: 0.8,
+  max_tokens: 2000
+)
+```
+
+## 🔧 Error Handling
 
 ```ruby
 begin
-  chain.ask("Explain DNS")
+  chain = LLMChain::Chain.new(model: "qwen3:1.7b")
+  response = chain.ask("Complex query")
+rescue LLMChain::UnknownModelError => e
+  puts "Unknown model: #{e.message}"
+rescue LLMChain::ClientError => e
+  puts "Client error: #{e.message}"
+rescue LLMChain::TimeoutError => e
+  puts "Timeout exceeded: #{e.message}"
 rescue LLMChain::Error => e
-  puts "Error: #{e.message}"
-  # Auto-fallback logic can be implemented here
+  puts "General LLMChain error: #{e.message}"
 end
 ```
 
-## Contributing
-Bug reports and pull requests are welcome on GitHub at:
-https://github.com/FuryCow/llm_chain
+## 📚 Usage Examples
 
-## License
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+### Chatbot with Tools
+
+```ruby
+require 'llm_chain'
+
+class ChatBot
+  def initialize
+    @tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+    @memory = LLMChain::Memory::Array.new(max_size: 20)
+    @chain = LLMChain::Chain.new(
+      model: "qwen3:1.7b",
+      memory: @memory,
+      tools: @tool_manager
+    )
+  end
+
+  def chat_loop
+    puts "🤖 Hello! I'm an AI assistant with tools. Ask me anything!"
+    
+    loop do
+      print "\n👤 You: "
+      input = gets.chomp
+      break if input.downcase.in?(['exit', 'quit', 'bye'])
+
+      response = @chain.ask(input, stream: true) do |chunk|
+        print chunk
+      end
+      puts "\n"
+    end
+  end
+end
+
+# Run
+bot = ChatBot.new
+bot.chat_loop
+```
+
+### Data Analysis with Code
+
+```ruby
+data_chain = LLMChain::Chain.new(
+  model: "qwen3:7b",
+  tools: LLMChain::Tools::ToolManager.create_default_toolset
+)
+
+# Analyze CSV data
+response = data_chain.ask(<<~PROMPT)
+  Analyze this code and execute it:
+  
+  ```ruby
+  data = [
+    { name: "Alice", age: 25, salary: 50000 },
+    { name: "Bob", age: 30, salary: 60000 },
+    { name: "Charlie", age: 35, salary: 70000 }
+  ]
+  
+  average_age = data.sum { |person| person[:age] } / data.size.to_f
+  total_salary = data.sum { |person| person[:salary] }
+  
+  puts "Average age: #{average_age}"
+  puts "Total salary: #{total_salary}"
+  puts "Average salary: #{total_salary / data.size}"
+  ```
+PROMPT
+
+puts response
+```
+
+## 🧪 Testing
+
+```bash
+# Run tests
+bundle exec rspec
+
+# Run demo
+ruby -I lib examples/tools_example.rb
+
+# Interactive console
+bundle exec bin/console
+```
+
+## 📖 API Documentation
+
+### Main Classes
+
+- `LLMChain::Chain` - Main class for creating chains
+- `LLMChain::Tools::ToolManager` - Tool management
+- `LLMChain::Memory::Array/Redis` - Memory systems
+- `LLMChain::Clients::*` - Clients for various LLMs
+
+### Chain Methods
+
+```ruby
+chain = LLMChain::Chain.new(options)
+
+# Main method
+chain.ask(prompt, stream: false, rag_context: false, rag_options: {})
+
+# Initialization parameters
+# - model: model name
+# - memory: memory object
+# - tools: array of tools or ToolManager
+# - retriever: RAG retriever
+# - client_options: additional client parameters
+```
+
+## 🛣️ Roadmap
+
+### v0.6.0
+- [ ] ReAct agents
+- [ ] More tools (files, database)
+- [ ] Claude integration
+- [ ] Enhanced logging
+
+### v0.7.0
+- [ ] Multi-agent systems
+- [ ] Task planning
+- [ ] Web interface
+- [ ] Metrics and monitoring
+
+### v1.0.0
+- [ ] Stable API
+- [ ] Complete documentation
+- [ ] Production readiness
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+### Development
+
+```bash
+git clone https://github.com/FuryCow/llm_chain.git
+cd llm_chain
+bundle install
+bundle exec rspec
+```
+
+## 📄 License
+
+This project is distributed under the [MIT License](LICENSE.txt).
+
+## 🙏 Acknowledgments
+
+- [Ollama](https://ollama.ai/) team for excellent local LLM platform
+- [LangChain](https://langchain.com/) developers for inspiration
+- Ruby community for support
+
+---
+
+**Made with ❤️ for Ruby community**
+
+[Documentation](https://github.com/FuryCow/llm_chain/wiki) | 
+[Examples](https://github.com/FuryCow/llm_chain/tree/main/examples) | 
+[Issues](https://github.com/FuryCow/llm_chain/issues) | 
+[Discussions](https://github.com/FuryCow/llm_chain/discussions)

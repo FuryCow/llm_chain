@@ -10,6 +10,12 @@ module LLMChain
           default: "qwen:7b",
           versions: ["qwen:7b", "qwen:14b", "qwen:72b", "qwen:0.5b"]
         },
+        qwen2: {
+          default: "qwen2:1.5b",
+          versions: [
+            "qwen2:0.5b", "qwen2:1.5b", "qwen2:7b", "qwen2:72b"
+          ]
+        },
         qwen3: {
           default: "qwen3:latest",
           versions: [
@@ -100,7 +106,13 @@ module LLMChain
       private
 
       def model_version
-        @model.start_with?('qwen3:') ? :qwen3 : :qwen
+        if @model.start_with?('qwen3:')
+          :qwen3
+        elsif @model.start_with?('qwen2:')
+          :qwen2
+        else
+          :qwen
+        end
       end
 
       def detect_default_model

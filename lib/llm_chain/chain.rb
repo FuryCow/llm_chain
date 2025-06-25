@@ -56,11 +56,21 @@ module LLMChain
     end
 
     def process_tools(prompt)
-      @tools.each_with_object({}) do |tool, acc|
-        if tool.match?(prompt)
-          response = tool.call(prompt)
-          acc[tool.name] = response unless response.nil?
+      return {} if @tools.nil? || (@tools.respond_to?(:empty?) && @tools.empty?)
+      
+      # Если @tools - это ToolManager
+      if @tools.respond_to?(:auto_execute)
+        @tools.auto_execute(prompt)
+      elsif @tools.is_a?(Array)
+        # Старая логика для массива инструментов
+        @tools.each_with_object({}) do |tool, acc|
+          if tool.match?(prompt)
+            response = tool.call(prompt)
+            acc[tool.name] = response unless response.nil?
+          end
         end
+      else
+        {}
       end
     end
 
@@ -94,7 +104,11 @@ module LLMChain
     def build_tool_responses(tool_responses)
       parts = ["Tool results:"]
       tool_responses.each do |name, response|
-        parts << "#{name}: #{response}"
+        if response.is_a?(Hash) && response[:formatted]
+          parts << "#{name}: #{response[:formatted]}"
+        else
+          parts << "#{name}: #{response}"
+        end
       end
       parts.join("\n")
     end
