@@ -105,7 +105,12 @@ module LLMChain
       parts = ["Tool results:"]
       tool_responses.each do |name, response|
         if response.is_a?(Hash) && response[:formatted]
-          parts << "#{name}: #{response[:formatted]}"
+          # Особая обработка для поиска без результатов
+          if name == "web_search" && response[:results] && response[:results].empty?
+            parts << "#{name}: No search results found. Please answer based on your knowledge, but indicate that search was unavailable."
+          else
+            parts << "#{name}: #{response[:formatted]}"
+          end
         else
           parts << "#{name}: #{response}"
         end

@@ -66,6 +66,14 @@ module LLMChain
         quoted = prompt.match(/"([^"]+)"/) || prompt.match(/'([^']+)'/)
         return quoted[1] if quoted
 
+        # Пробуем найти простое выражение в тексте сначала (более точно)
+        math_expr = prompt.match(/(\d+(?:\.\d+)?\s*[+\-*\/]\s*\d+(?:\.\d+)?(?:\s*[+\-*\/]\s*\d+(?:\.\d+)?)*)/)
+        return math_expr[1].strip if math_expr
+
+        # Ищем функции
+        func_expr = prompt.match(/\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\([^)]+\)/i)
+        return func_expr[0] if func_expr
+
         # Ищем выражение после ключевых слов
         KEYWORDS.each do |keyword|
           if prompt.downcase.include?(keyword)
@@ -74,27 +82,30 @@ module LLMChain
             if after_keyword
               # Извлекаем математическое выражение
               expr = after_keyword.strip.split(/[.!?]/).first
-              return clean_expression(expr) if expr
+              if expr
+                cleaned = clean_expression(expr)
+                return cleaned unless cleaned.empty?
+              end
             end
           end
         end
-
-        # Пробуем найти простое выражение в тексте
-        math_expr = prompt.match(/(\d+(?:\.\d+)?\s*[+\-*\/]\s*\d+(?:\.\d+)?(?:\s*[+\-*\/]\s*\d+(?:\.\d+)?)*)/)
-        return math_expr[1] if math_expr
-
-        # Ищем функции
-        func_expr = prompt.match(/\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\([^)]+\)/i)
-        return func_expr[0] if func_expr
 
         ""
       end
 
       def clean_expression(expr)
-        # Удаляем лишние слова и оставляем только математическое выражение
-        expr.gsub(/\b(is|what|equals?|result|answer)\b/i, '')
-            .gsub(/[^\d+\-*\/().\s]/, '')
-            .strip
+        # Удаляем лишние слова но оставляем числа и операторы
+        cleaned = expr.gsub(/\b(is|what|equals?|result|answer|the)\b/i, '')
+                     .gsub(/[^\d+\-*\/().\s]/, ' ')  # заменяем на пробелы, не удаляем
+                     .gsub(/\s+/, ' ')  # убираем множественные пробелы
+                     .strip
+        
+        # Проверяем что результат похож на математическое выражение
+        if cleaned.match?(/\d+(?:\.\d+)?\s*[+\-*\/]\s*\d+(?:\.\d+)?/)
+          cleaned
+        else
+          ""
+        end
       end
 
       def evaluate_expression(expression)

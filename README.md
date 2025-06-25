@@ -8,6 +8,15 @@
 
 LLMChain is a Ruby analog of LangChain, providing a unified interface for interacting with various LLMs, built-in tool system, and RAG (Retrieval-Augmented Generation) support.
 
+## 🎉 What's New in v0.5.1
+
+- ✅ **Google Search Integration** - Accurate, up-to-date search results
+- ✅ **Fixed Calculator** - Improved expression parsing and evaluation
+- ✅ **Enhanced Code Interpreter** - Better code extraction from prompts
+- ✅ **Production-Ready Output** - Clean interface without debug noise
+- ✅ **Quick Chain Creation** - Simple `LLMChain.quick_chain` method
+- ✅ **Simplified Configuration** - Easy setup with sensible defaults
+
 ## ✨ Key Features
 
 - 🤖 **Unified API** for multiple LLMs (OpenAI, Ollama, Qwen, LLaMA2, Gemma)
@@ -45,10 +54,14 @@ gem 'llm_chain'
    ollama pull llama2:7b
    ```
 
-2. **Optional**: API keys for external services
+2. **Optional**: API keys for enhanced features
    ```bash
-   export OPENAI_API_KEY="your-key"
-   export SEARCH_API_KEY="your-key"
+   # For OpenAI models
+   export OPENAI_API_KEY="your-openai-key"
+   
+   # For Google Search (get at console.developers.google.com)
+   export GOOGLE_API_KEY="your-google-key"
+   export GOOGLE_SEARCH_ENGINE_ID="your-search-engine-id"
    ```
 
 ### Simple Example
@@ -56,7 +69,12 @@ gem 'llm_chain'
 ```ruby
 require 'llm_chain'
 
-# Basic usage
+# Quick start with default tools (v0.5.1+)
+chain = LLMChain.quick_chain
+response = chain.ask("Hello! How are you?")
+puts response
+
+# Or traditional setup
 chain = LLMChain::Chain.new(model: "qwen3:1.7b")
 response = chain.ask("Hello! How are you?")
 puts response
@@ -67,22 +85,25 @@ puts response
 ### Automatic Tool Usage
 
 ```ruby
-# Create chain with tools
+# Quick setup (v0.5.1+)
+chain = LLMChain.quick_chain
+
+# Tools are selected automatically
+chain.ask("Calculate 15 * 7 + 32")
+# 🧮 Result: 137
+
+chain.ask("Which is the latest version of Ruby?")
+# 🔍 Result: Ruby 3.3.6 (via Google search)
+
+chain.ask("Execute code: puts (1..10).sum")
+# 💻 Result: 55
+
+# Traditional setup
 tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
 chain = LLMChain::Chain.new(
   model: "qwen3:1.7b",
   tools: tool_manager
 )
-
-# Tools are selected automatically
-chain.ask("Calculate 15 * 7 + 32")
-# 🧮 Automatically uses calculator
-
-chain.ask("Find information about Ruby 3.2")
-# 🔍 Automatically uses web search
-
-chain.ask("Execute code: puts (1..10).sum")
-# 💻 Automatically uses code interpreter
 ```
 
 ### Built-in Tools
@@ -97,9 +118,16 @@ puts result[:formatted]
 
 #### 🌐 Web Search
 ```ruby
+# Google search for accurate results (v0.5.1+)
 search = LLMChain::Tools::WebSearch.new
-results = search.call("Latest Ruby news")
+results = search.call("Latest Ruby version")
 puts results[:formatted]
+# Output: Ruby 3.3.6 is the current stable version...
+
+# Fallback data available without API keys
+search = LLMChain::Tools::WebSearch.new
+results = search.call("Which is the latest version of Ruby?")
+# Works even without Google API configured
 ```
 
 #### 💻 Code Interpreter
@@ -114,6 +142,28 @@ result = interpreter.call(<<~CODE)
   ```
 CODE
 puts result[:formatted]
+```
+
+## ⚙️ Configuration (v0.5.1+)
+
+```ruby
+# Global configuration
+LLMChain.configure do |config|
+  config.default_model = "qwen3:1.7b"          # Default LLM model
+  config.search_engine = :google               # Google for accurate results
+  config.memory_size = 100                     # Memory buffer size
+  config.timeout = 30                          # Request timeout (seconds)
+end
+
+# Quick chain with default settings
+chain = LLMChain.quick_chain
+
+# Override settings per chain
+chain = LLMChain.quick_chain(
+  model: "gpt-4",
+  tools: false,                               # Disable tools
+  memory: false                               # Disable memory
+)
 ```
 
 ### Creating Custom Tools
@@ -502,21 +552,21 @@ chain.ask(prompt, stream: false, rag_context: false, rag_options: {})
 ## 🛣️ Roadmap
 
 ### v0.6.0
-- [ ] ReAct agents
-- [ ] More tools (files, database)
+- [ ] ReAct agents and multi-step reasoning
+- [ ] More tools (file system, database queries)
 - [ ] Claude integration
-- [ ] Enhanced logging
+- [ ] Enhanced error handling
 
 ### v0.7.0
 - [ ] Multi-agent systems
-- [ ] Task planning
-- [ ] Web interface
+- [ ] Task planning and workflows
+- [ ] Web interface for testing
 - [ ] Metrics and monitoring
 
 ### v1.0.0
-- [ ] Stable API
-- [ ] Complete documentation
-- [ ] Production readiness
+- [ ] Stable API with semantic versioning
+- [ ] Complete documentation coverage
+- [ ] Production-grade performance
 
 ## 🤝 Contributing
 
@@ -551,5 +601,6 @@ This project is distributed under the [MIT License](LICENSE.txt).
 
 [Documentation](https://github.com/FuryCow/llm_chain/wiki) | 
 [Examples](https://github.com/FuryCow/llm_chain/tree/main/examples) | 
+[Changelog](CHANGELOG.md) |
 [Issues](https://github.com/FuryCow/llm_chain/issues) | 
 [Discussions](https://github.com/FuryCow/llm_chain/discussions)

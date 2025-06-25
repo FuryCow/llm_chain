@@ -112,7 +112,14 @@ module LLMChain
         code_block = prompt.match(/```(?:ruby|python|javascript|js)?\s*\n(.*?)\n```/m)
         return code_block[1].strip if code_block
 
-        # Ищем код после ключевых слов
+        # Ищем код после ключевых слов в той же строке (например, "Execute code: puts ...")
+        execute_match = prompt.match(/execute\s+code:\s*(.+)/i)
+        return execute_match[1].strip if execute_match
+
+        run_match = prompt.match(/run\s+code:\s*(.+)/i)
+        return run_match[1].strip if run_match
+
+        # Ищем код после ключевых слов в разных строках
         KEYWORDS.each do |keyword|
           if prompt.downcase.include?(keyword)
             lines = prompt.split("\n")
@@ -130,7 +137,9 @@ module LLMChain
         code_lines = prompt.split("\n").select do |line|
           line.strip.match?(/^(def|class|function|var|let|const|print|puts|console\.log)/i) ||
           line.strip.match?(/^\w+\s*[=+\-*\/]\s*/) ||
-          line.strip.match?(/^\s*(if|for|while|return)[\s(]/i)
+          line.strip.match?(/^\s*(if|for|while|return)[\s(]/i) ||
+          line.strip.match?(/puts\s+/) ||
+          line.strip.match?(/print\s*\(/)
         end
 
         code_lines.join("\n")

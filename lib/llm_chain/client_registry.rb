@@ -7,7 +7,6 @@ module LLMChain
     end
 
     def self.client_for(model, **options)
-      puts model
       instance = case model
       when /gpt|openai/
         Clients::OpenAI
