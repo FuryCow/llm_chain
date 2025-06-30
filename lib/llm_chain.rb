@@ -28,6 +28,12 @@ module LLMChain
   class ServerError < Error; end
   class TimeoutError < Error; end
   class MemoryError < Error; end
+end
+
+# Загружаем валидатор после определения базовых классов
+require_relative "llm_chain/configuration_validator"
+
+module LLMChain
 
   # Простая система конфигурации
   class Configuration
@@ -53,12 +59,13 @@ module LLMChain
     end
 
     # Быстрое создание цепочки с настройками по умолчанию
-    def quick_chain(model: nil, tools: true, memory: true, **options)
+    def quick_chain(model: nil, tools: true, memory: true, validate_config: true, **options)
       model ||= configuration.default_model
       
       chain_options = {
         model: model,
         retriever: false,
+        validate_config: validate_config,
         **options
       }
       
@@ -72,6 +79,40 @@ module LLMChain
       end
       
       Chain.new(**chain_options)
+    end
+
+    # Диагностика системы
+    def diagnose_system
+      puts "🔍 LLMChain System Diagnostics"
+      puts "=" * 50
+      
+      results = ConfigurationValidator.validate_environment
+      
+      puts "\n📋 System Components:"
+      puts "  Ruby: #{results[:ruby] ? '✅' : '❌'} (#{RUBY_VERSION})"
+      puts "  Python: #{results[:python] ? '✅' : '❌'}"
+      puts "  Node.js: #{results[:node] ? '✅' : '❌'}"
+      puts "  Internet: #{results[:internet] ? '✅' : '❌'}"
+      puts "  Ollama: #{results[:ollama] ? '✅' : '❌'}"
+      
+      puts "\n🔑 API Keys:"
+      results[:apis].each do |api, available|
+        puts "  #{api.to_s.capitalize}: #{available ? '✅' : '❌'}"
+      end
+      
+      if results[:warnings].any?
+        puts "\n⚠️  Warnings:"
+        results[:warnings].each { |warning| puts "  • #{warning}" }
+      end
+      
+      puts "\n💡 Recommendations:"
+      puts "  • Install missing components for full functionality"
+      puts "  • Configure API keys for enhanced features"
+      puts "  • Start Ollama server: ollama serve" unless results[:ollama]
+      
+      puts "\n" + "=" * 50
+      
+      results
     end
   end
 end

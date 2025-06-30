@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-01-XX
+
+### Added
+- **Configuration Validator** - Comprehensive system validation before chain initialization
+- **System Diagnostics** - `LLMChain.diagnose_system` method for health checks
+- **Retry Logic** - Exponential backoff for HTTP requests with configurable max retries
+- **Enhanced Logging** - Structured logging with debug mode support
+- **Internet Connectivity Detection** - Automatic offline mode detection
+- **Code Extraction Improvements** - Better parsing of code blocks and inline commands
+
+### Changed
+- **Improved Error Handling** - Better error messages with suggested solutions
+- **Enhanced WebSearch** - More robust fallback mechanisms and timeout handling
+- **CodeInterpreter Enhancements** - Improved code extraction from various formats
+- **Better Validation** - Early detection of configuration issues with helpful warnings
+
+### Fixed
+- **WebSearch Stability** - Fixed timeout and connection issues with retry logic
+- **Code Block Parsing** - Resolved issues with multiline regex and Windows line endings
+- **Graceful Degradation** - Better handling of offline scenarios and API failures
+- **Memory Leaks** - Improved cleanup of temporary files and resources
+
 ## [0.5.1] - 2025-06-26
 
 ### Added
@@ -46,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Initial stable release with core functionality
 
-[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/FuryCow/llm_chain/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FuryCow/llm_chain/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/FuryCow/llm_chain/releases/tag/v0.5.0 

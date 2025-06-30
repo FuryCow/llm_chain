@@ -46,13 +46,15 @@ module LLMChain
         num_results = extract_num_results(prompt)
         
         begin
-          results = perform_search(query, num_results)
+          results = perform_search_with_retry(query, num_results)
           format_search_results(query, results)
         rescue => e
+          log_error("Search failed for '#{query}'", e)
           {
             query: query,
             error: e.message,
-            formatted: "Error searching for '#{query}': #{e.message}"
+            results: [],
+            formatted: "Search unavailable for '#{query}'. Please try again later or rephrase your query."
           }
         end
       end
@@ -97,6 +99,31 @@ module LLMChain
         5 # default
       end
 
+      def perform_search_with_retry(query, num_results, max_retries: 3)
+        retries = 0
+        last_error = nil
+
+        begin
+          perform_search(query, num_results)
+        rescue => e
+          last_error = e
+          retries += 1
+          
+          if retries <= max_retries && retryable_error?(e)
+            sleep_time = [0.5 * (2 ** (retries - 1)), 5.0].min # exponential backoff, max 5 seconds
+            log_retry("Retrying search (#{retries}/#{max_retries}) after #{sleep_time}s", e)
+            sleep(sleep_time)
+            retry
+          else
+            log_error("Search failed after #{retries} attempts", e)
+            # Fallback to hardcoded results as last resort
+            hardcoded = get_hardcoded_results(query)
+            return hardcoded unless hardcoded.empty?
+            raise e
+          end
+        end
+      end
+
       def perform_search(query, num_results)
         case @search_engine
         when :google
@@ -115,25 +142,52 @@ module LLMChain
       def fallback_search(query, num_results)
         return [] if num_results <= 0
         
-        # Если обычный поиск не работает, используем заранее заготовленные данные
-        # для популярных запросов
+        # Сначала пробуем заранее заготовленные данные для популярных запросов
         hardcoded_results = get_hardcoded_results(query)
         return hardcoded_results unless hardcoded_results.empty?
         
-        # Простой поиск по HTML странице DuckDuckGo
-        uri = URI("https://html.duckduckgo.com/html/")
-        uri.query = URI.encode_www_form(q: query)
+        # Проверяем, доступен ли интернет
+        return offline_fallback_results(query) if offline_mode?
         
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-        http.open_timeout = 10
-        http.read_timeout = 10
+        begin
+          results = search_duckduckgo_html(query, num_results)
+          return results unless results.empty?
+          
+          # Если DuckDuckGo не дал результатов, возвращаем заглушку
+          offline_fallback_results(query)
+        rescue => e
+          log_error("Fallback search failed", e)
+          offline_fallback_results(query)
+        end
+      end
+
+      def search_duckduckgo_html(query, num_results)
+        require 'timeout'
         
-        response = http.get(uri.request_uri)
-        return [] unless response.code == '200'
-        
-        # Улучшенный парсинг результатов
-        html = response.body
+        Timeout.timeout(15) do
+          uri = URI("https://html.duckduckgo.com/html/")
+          uri.query = URI.encode_www_form(q: query)
+          
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = true
+          http.open_timeout = 8
+          http.read_timeout = 10
+          
+          response = http.get(uri.request_uri)
+          
+          unless response.code == '200'
+            log_error("DuckDuckGo returned #{response.code}", StandardError.new(response.body))
+            return []
+          end
+          
+          parse_duckduckgo_results(response.body, num_results)
+        end
+      rescue Timeout::Error
+        log_error("DuckDuckGo search timeout", Timeout::Error.new("Request took longer than 15 seconds"))
+        []
+      end
+
+      def parse_duckduckgo_results(html, num_results)
         results = []
         
         # Ищем различные паттерны результатов
@@ -147,9 +201,10 @@ module LLMChain
           html.scan(pattern) do |url, title|
             next if results.length >= num_results
             next if url.include?('duckduckgo.com/y.js') # Skip tracking links
+            next if title.strip.empty?
             
             results << {
-              title: title.strip.gsub(/\s+/, ' '),
+              title: clean_html_text(title),
               url: clean_url(url),
               snippet: "Search result from DuckDuckGo"
             }
@@ -158,12 +213,35 @@ module LLMChain
         end
         
         results
-      rescue => e
+      end
+
+      def offline_fallback_results(query)
         [{
           title: "Search unavailable",
           url: "",  
-          snippet: "Unable to perform web search at this time. Query: #{query}"
+          snippet: "Unable to perform web search at this time. Query: #{query}. Please check your internet connection."
         }]
+      end
+
+      def offline_mode?
+        # Простая проверка доступности интернета
+        begin
+          require 'socket'
+          Socket.tcp("8.8.8.8", 53, connect_timeout: 3) {}
+          false
+        rescue
+          true
+        end
+      end
+
+      def clean_html_text(text)
+        text.strip
+            .gsub(/&lt;/, '<')
+            .gsub(/&gt;/, '>')
+            .gsub(/&amp;/, '&')
+            .gsub(/&quot;/, '"')
+            .gsub(/&#39;/, "'")
+            .gsub(/\s+/, ' ')
       end
 
       # Заранее заготовленные результаты для популярных запросов
@@ -203,76 +281,151 @@ module LLMChain
       def search_google(query, num_results)
         # Google Custom Search API (требует API ключ)
         unless @api_key
+          log_error("Google API key not provided, using fallback", StandardError.new("No API key"))
           return fallback_search(query, num_results)
         end
 
-        search_engine_id = ENV['GOOGLE_SEARCH_ENGINE_ID'] || ENV['GOOGLE_CX'] || 'your-search-engine-id'
-        
-        uri = URI("https://www.googleapis.com/customsearch/v1")
-        params = {
-          key: @api_key,
-          cx: search_engine_id,
-          q: query,
-          num: [num_results, 10].min
-        }
-        uri.query = URI.encode_www_form(params)
-
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-        http.open_timeout = 10
-        http.read_timeout = 10
-
-        response = http.get(uri.request_uri)
-        
-        unless response.code == '200'
+        search_engine_id = ENV['GOOGLE_SEARCH_ENGINE_ID'] || ENV['GOOGLE_CX']
+        unless search_engine_id && search_engine_id != 'your-search-engine-id'
+          log_error("Google Search Engine ID not configured", StandardError.new("Missing GOOGLE_SEARCH_ENGINE_ID"))
           return fallback_search(query, num_results)
         end
+        
+        begin
+          require 'timeout'
+          
+          Timeout.timeout(20) do
+            uri = URI("https://www.googleapis.com/customsearch/v1")
+            params = {
+              key: @api_key,
+              cx: search_engine_id,
+              q: query,
+              num: [num_results, 10].min,
+              safe: 'active'
+            }
+            uri.query = URI.encode_www_form(params)
 
-        data = JSON.parse(response.body)
-        
-        results = (data['items'] || []).map do |item|
-          {
-            title: item['title'],
-            url: item['link'],
-            snippet: item['snippet']
-          }
+            http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = true
+            http.open_timeout = 8
+            http.read_timeout = 12
+
+            response = http.get(uri.request_uri)
+            
+            case response.code
+            when '200'
+              data = JSON.parse(response.body)
+              
+              if data['error']
+                log_error("Google API error: #{data['error']['message']}", StandardError.new(data['error']['message']))
+                return fallback_search(query, num_results)
+              end
+              
+              results = (data['items'] || []).map do |item|
+                {
+                  title: item['title']&.strip || 'Untitled',
+                  url: item['link'] || '',
+                  snippet: item['snippet']&.strip || 'No description available'
+                }
+              end
+              
+              # Если Google не вернул результатов, используем fallback
+              results.empty? ? fallback_search(query, num_results) : results
+            when '403'
+              log_error("Google API quota exceeded or invalid key", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            when '400'
+              log_error("Google API bad request", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            else
+              log_error("Google API returned #{response.code}", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            end
+          end
+        rescue Timeout::Error
+          log_error("Google search timeout", Timeout::Error.new("Request took longer than 20 seconds"))
+          fallback_search(query, num_results)
+        rescue JSON::ParserError => e
+          log_error("Invalid JSON response from Google", e)
+          fallback_search(query, num_results)
+        rescue => e
+          log_error("Google search failed", e)
+          fallback_search(query, num_results)
         end
-        
-        # Если Google не вернул результатов, используем fallback
-        results.empty? ? fallback_search(query, num_results) : results
-      rescue => e
-        fallback_search(query, num_results)
       end
 
       def search_bing(query, num_results)
         # Bing Web Search API (требует API ключ)
-        raise "Bing API key required" unless @api_key
+        unless @api_key
+          log_error("Bing API key not provided, using fallback", StandardError.new("No API key"))
+          return fallback_search(query, num_results)
+        end
 
-        uri = URI("https://api.bing.microsoft.com/v7.0/search")
-        params = {
-          q: query,
-          count: [num_results, 20].min,
-          responseFilter: 'Webpages'
-        }
-        uri.query = URI.encode_www_form(params)
+        begin
+          require 'timeout'
+          
+          Timeout.timeout(20) do
+            uri = URI("https://api.bing.microsoft.com/v7.0/search")
+            params = {
+              q: query,
+              count: [num_results, 20].min,
+              responseFilter: 'Webpages',
+              safeSearch: 'Moderate'
+            }
+            uri.query = URI.encode_www_form(params)
 
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-        
-        request = Net::HTTP::Get.new(uri)
-        request['Ocp-Apim-Subscription-Key'] = @api_key
-        
-        response = http.request(request)
-        raise "Bing API error: #{response.code}" unless response.code == '200'
-
-        data = JSON.parse(response.body)
-        
-        (data.dig('webPages', 'value') || []).map do |item|
-          {
-            title: item['name'],
-            url: item['url'],
-            snippet: item['snippet']
-          }
+            http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = true
+            http.open_timeout = 8
+            http.read_timeout = 12
+            
+            request = Net::HTTP::Get.new(uri)
+            request['Ocp-Apim-Subscription-Key'] = @api_key
+            request['User-Agent'] = 'LLMChain/1.0'
+            
+            response = http.request(request)
+            
+            case response.code
+            when '200'
+              data = JSON.parse(response.body)
+              
+              if data['error']
+                log_error("Bing API error: #{data['error']['message']}", StandardError.new(data['error']['message']))
+                return fallback_search(query, num_results)
+              end
+              
+              results = (data.dig('webPages', 'value') || []).map do |item|
+                {
+                  title: item['name']&.strip || 'Untitled',
+                  url: item['url'] || '',
+                  snippet: item['snippet']&.strip || 'No description available'
+                }
+              end
+              
+              results.empty? ? fallback_search(query, num_results) : results
+            when '401'
+              log_error("Bing API unauthorized - check your subscription key", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            when '403'
+              log_error("Bing API quota exceeded", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            when '429'
+              log_error("Bing API rate limit exceeded", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            else
+              log_error("Bing API returned #{response.code}", StandardError.new(response.body))
+              fallback_search(query, num_results)
+            end
+          end
+        rescue Timeout::Error
+          log_error("Bing search timeout", Timeout::Error.new("Request took longer than 20 seconds"))
+          fallback_search(query, num_results)
+        rescue JSON::ParserError => e
+          log_error("Invalid JSON response from Bing", e)
+          fallback_search(query, num_results)
+        rescue => e
+          log_error("Bing search failed", e)
+          fallback_search(query, num_results)
         end
       end
 
@@ -299,6 +452,52 @@ module LLMChain
 
       def required_parameters
         ['query']
+      end
+
+      private
+
+      def retryable_error?(error)
+        # Определяем, стоит ли повторять запрос при данной ошибке
+        case error
+        when Net::TimeoutError, Net::OpenTimeout, Net::ReadTimeout
+          true
+        when SocketError
+          # DNS ошибки обычно временные
+          true
+        when Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH
+          true
+        when Net::HTTPError
+          # Повторяем только для серверных ошибок (5xx)
+          error.message.match?(/5\d\d/)
+        else
+          false
+        end
+      end
+
+      def log_error(message, error)
+        return unless should_log?
+        
+        if defined?(Rails) && Rails.logger
+          Rails.logger.error "[WebSearch] #{message}: #{error.class} - #{error.message}"
+        else
+          warn "[WebSearch] #{message}: #{error.class} - #{error.message}"
+        end
+      end
+
+      def log_retry(message, error)
+        return unless should_log?
+        
+        if defined?(Rails) && Rails.logger
+          Rails.logger.warn "[WebSearch] #{message}: #{error.class} - #{error.message}"
+        else
+          warn "[WebSearch] #{message}: #{error.class} - #{error.message}"
+        end
+      end
+
+      def should_log?
+        ENV['LLM_CHAIN_DEBUG'] == 'true' || 
+        ENV['RAILS_ENV'] == 'development' ||
+        (defined?(Rails) && Rails.env.development?)
       end
     end
   end

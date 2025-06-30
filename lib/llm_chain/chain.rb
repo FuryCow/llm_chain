@@ -9,7 +9,22 @@ module LLMChain
     # @param tools [Array<Tool>] Массив инструментов
     # @param retriever [#search] RAG-ретривер (Weaviate, Pinecone и т.д.)
     # @param client_options [Hash] Опции для клиента LLM
-    def initialize(model: nil, memory: nil, tools: [], retriever: nil, **client_options)
+    def initialize(model: nil, memory: nil, tools: [], retriever: nil, validate_config: true, **client_options)
+      # Валидация конфигурации (можно отключить через validate_config: false)
+      if validate_config
+        begin
+          ConfigurationValidator.validate_chain_config!(
+            model: model, 
+            tools: tools, 
+            memory: memory,
+            retriever: retriever,
+            **client_options
+          )
+        rescue ConfigurationValidator::ValidationError => e
+          raise Error, "Configuration validation failed: #{e.message}"
+        end
+      end
+
       @model = model
       @memory = memory || Memory::Array.new
       @tools = tools

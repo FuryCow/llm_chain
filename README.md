@@ -8,14 +8,14 @@
 
 LLMChain is a Ruby analog of LangChain, providing a unified interface for interacting with various LLMs, built-in tool system, and RAG (Retrieval-Augmented Generation) support.
 
-## 🎉 What's New in v0.5.1
+## 🎉 What's New in v0.5.2
 
-- ✅ **Google Search Integration** - Accurate, up-to-date search results
-- ✅ **Fixed Calculator** - Improved expression parsing and evaluation
-- ✅ **Enhanced Code Interpreter** - Better code extraction from prompts
-- ✅ **Production-Ready Output** - Clean interface without debug noise
-- ✅ **Quick Chain Creation** - Simple `LLMChain.quick_chain` method
-- ✅ **Simplified Configuration** - Easy setup with sensible defaults
+- ✅ **System Diagnostics** - Built-in health checks with `LLMChain.diagnose_system`
+- ✅ **Configuration Validation** - Early detection of setup issues and helpful warnings  
+- ✅ **Enhanced Error Handling** - Retry logic with exponential backoff for network requests
+- ✅ **Robust WebSearch** - Better timeout handling and graceful degradation
+- ✅ **Improved Code Extraction** - Enhanced support for various code block formats
+- ✅ **Debug Logging** - Structured logging with `LLM_CHAIN_DEBUG=true`
 
 ## ✨ Key Features
 
@@ -80,6 +80,56 @@ response = chain.ask("Hello! How are you?")
 puts response
 ```
 
+## 🔍 System Diagnostics (v0.5.2+)
+
+Before diving into development, it's recommended to check your system configuration:
+
+```ruby
+require 'llm_chain'
+
+# Run comprehensive system diagnostics
+LLMChain.diagnose_system
+# 🔍 LLMChain System Diagnostics
+# ==================================================
+# 📋 System Components:
+#   Ruby: ✅ (3.2.2)
+#   Python: ✅
+#   Node.js: ✅
+#   Internet: ✅
+#   Ollama: ✅
+# 🔑 API Keys:
+#   Openai: ❌
+#   Google_search: ❌
+# 💡 Recommendations:
+#   • Configure API keys for enhanced features
+#   • Start Ollama server: ollama serve
+```
+
+### Configuration Validation
+
+Chains now validate their configuration on startup:
+
+```ruby
+# Automatic validation (v0.5.2+)
+begin
+  chain = LLMChain.quick_chain(model: "qwen3:1.7b")
+rescue LLMChain::Error => e
+  puts "Configuration issue: #{e.message}"
+end
+
+# Disable validation if needed
+chain = LLMChain.quick_chain(
+  model: "qwen3:1.7b",
+  validate_config: false
+)
+
+# Manual validation
+LLMChain::ConfigurationValidator.validate_chain_config!(
+  model: "qwen3:1.7b",
+  tools: LLMChain::Tools::ToolManager.create_default_toolset
+)
+```
+
 ## 🛠️ Tool System
 
 ### Automatic Tool Usage
@@ -130,9 +180,11 @@ results = search.call("Which is the latest version of Ruby?")
 # Works even without Google API configured
 ```
 
-#### 💻 Code Interpreter
+#### 💻 Code Interpreter (Enhanced in v0.5.2)
 ```ruby
 interpreter = LLMChain::Tools::CodeInterpreter.new
+
+# Standard markdown blocks
 result = interpreter.call(<<~CODE)
   ```ruby
   def factorial(n)
@@ -141,10 +193,25 @@ result = interpreter.call(<<~CODE)
   puts factorial(5)
   ```
 CODE
+
+# Inline code commands (v0.5.2+)
+result = interpreter.call("Execute code: puts 'Hello World!'")
+
+# Code without language specification
+result = interpreter.call(<<~CODE)
+  ```
+  numbers = [1, 2, 3, 4, 5]
+  puts numbers.sum
+  ```
+CODE
+
+# Windows line endings support (v0.5.2+)
+result = interpreter.call("```ruby\r\nputs 'Windows compatible'\r\n```")
+
 puts result[:formatted]
 ```
 
-## ⚙️ Configuration (v0.5.1+)
+## ⚙️ Configuration (v0.5.2+)
 
 ```ruby
 # Global configuration
@@ -158,12 +225,46 @@ end
 # Quick chain with default settings
 chain = LLMChain.quick_chain
 
-# Override settings per chain
+# Override settings per chain (v0.5.2+)
 chain = LLMChain.quick_chain(
   model: "gpt-4",
   tools: false,                               # Disable tools
-  memory: false                               # Disable memory
+  memory: false,                              # Disable memory
+  validate_config: false                      # Skip validation
 )
+```
+
+### Debug Mode (v0.5.2+)
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# Enable debug logging
+export LLM_CHAIN_DEBUG=true
+
+# Or in Ruby
+ENV['LLM_CHAIN_DEBUG'] = 'true'
+```
+
+### Validation and Error Handling (v0.5.2+)
+
+```ruby
+# Comprehensive environment check
+results = LLMChain::ConfigurationValidator.validate_environment
+puts "Ollama available: #{results[:ollama]}"
+puts "Internet: #{results[:internet]}"
+puts "Warnings: #{results[:warnings]}"
+
+# Chain validation with custom settings
+begin
+  LLMChain::ConfigurationValidator.validate_chain_config!(
+    model: "gpt-4",
+    tools: [LLMChain::Tools::Calculator.new, LLMChain::Tools::WebSearch.new]
+  )
+rescue LLMChain::ConfigurationValidator::ValidationError => e
+  puts "Setup issue: #{e.message}"
+  # Handle configuration problems
+end
 ```
 
 ### Creating Custom Tools
@@ -424,21 +525,62 @@ openai = LLMChain::Clients::OpenAI.new(
 )
 ```
 
-## 🔧 Error Handling
+## 🔧 Error Handling (Enhanced in v0.5.2)
 
 ```ruby
 begin
   chain = LLMChain::Chain.new(model: "qwen3:1.7b")
   response = chain.ask("Complex query")
+rescue LLMChain::ConfigurationValidator::ValidationError => e
+  puts "Configuration issue: #{e.message}"
+  # Use LLMChain.diagnose_system to check setup
 rescue LLMChain::UnknownModelError => e
   puts "Unknown model: #{e.message}"
+  # Check available models with ollama list
 rescue LLMChain::ClientError => e
   puts "Client error: #{e.message}"
+  # Network or API issues
 rescue LLMChain::TimeoutError => e
   puts "Timeout exceeded: #{e.message}"
+  # Increase timeout or use faster model
 rescue LLMChain::Error => e
   puts "General LLMChain error: #{e.message}"
 end
+```
+
+### Automatic Retry Logic (v0.5.2+)
+
+WebSearch and other tools now include automatic retry with exponential backoff:
+
+```ruby
+# Retry configuration is automatic, but you can observe it:
+ENV['LLM_CHAIN_DEBUG'] = 'true'
+
+search = LLMChain::Tools::WebSearch.new
+result = search.call("search query")
+# [WebSearch] Retrying search (1/3) after 0.5s: Net::TimeoutError
+# [WebSearch] Retrying search (2/3) after 1.0s: Net::TimeoutError
+# [WebSearch] Search failed after 3 attempts: Net::TimeoutError
+
+# Tools gracefully degrade to fallback methods when possible
+puts result[:formatted] # Still provides useful response
+```
+
+### Graceful Degradation
+
+```ruby
+# Tools handle failures gracefully
+calculator = LLMChain::Tools::Calculator.new
+web_search = LLMChain::Tools::WebSearch.new
+code_runner = LLMChain::Tools::CodeInterpreter.new
+
+# Even with network issues, you get useful responses:
+search_result = web_search.call("latest Ruby version")
+# Falls back to hardcoded data for common queries
+
+# Safe code execution with timeout protection:
+code_result = code_runner.call("puts 'Hello World!'")
+# Executes safely with proper sandboxing
 ```
 
 ## 📚 Usage Examples
@@ -551,11 +693,17 @@ chain.ask(prompt, stream: false, rag_context: false, rag_options: {})
 
 ## 🛣️ Roadmap
 
-### v0.6.0
+### v0.5.2 ✅ Completed
+- [x] System diagnostics and health checks
+- [x] Configuration validation
+- [x] Enhanced error handling with retry logic
+- [x] Improved code extraction and tool stability
+
+### v0.6.0 (Next)
 - [ ] ReAct agents and multi-step reasoning
 - [ ] More tools (file system, database queries)
 - [ ] Claude integration
-- [ ] Enhanced error handling
+- [ ] Advanced logging and metrics
 
 ### v0.7.0
 - [ ] Multi-agent systems
