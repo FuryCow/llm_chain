@@ -3,7 +3,7 @@ require 'timeout'
 
 module LLMChain
   module Tools
-    class CodeInterpreter < BaseTool
+    class CodeInterpreter < Base
       KEYWORDS = %w[
         code run execute script program
         ruby python javascript

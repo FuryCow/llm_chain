@@ -4,7 +4,7 @@ require 'uri'
 
 module LLMChain
   module Tools
-    class WebSearch < BaseTool
+    class WebSearch < Base
       KEYWORDS = %w[
         search find lookup google bing
         what is who is where is when is

@@ -2,7 +2,7 @@ require 'bigdecimal'
 
 module LLMChain
   module Tools
-    class Calculator < BaseTool
+    class Calculator < Base
       KEYWORDS = %w[
         calculate compute math equation formula
         add subtract multiply divide

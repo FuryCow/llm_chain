@@ -10,8 +10,8 @@ module LLMChain
 
       # Регистрирует новый инструмент
       def register_tool(tool)
-        unless tool.is_a?(BaseTool)
-          raise ArgumentError, "Tool must inherit from BaseTool"
+        unless tool.is_a?(Base)
+          raise ArgumentError, "Tool must inherit from LLMChain::Tools::Base"
         end
         @tools[tool.name] = tool
       end

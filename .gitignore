@@ -11,3 +11,5 @@
 .rspec_status
 /.vscode/
 usage_example.rb
+TODO_*.md
+*.gem
