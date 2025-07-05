@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2025-07-05
+
+### Added
+* **CLI Executable** (`llm-chain`) with commands:
+  * `chat` – one-off prompt
+  * `diagnose` – system diagnostics
+  * `tools list` – list default tools
+  * `repl` – interactive Read-Eval-Print Loop with in-memory history and helper slash-commands
+
+### Changed
+* CLI autodetects Bundler only in development repo to avoid gem conflicts.
+
+### Fixed
+* Version conflicts when running CLI inside unrelated Bundler projects.
+
 ## [0.5.2] - 2025-01-XX
 
 ### Added
@@ -68,7 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Initial stable release with core functionality
 
-[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/FuryCow/llm_chain/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/FuryCow/llm_chain/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FuryCow/llm_chain/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/FuryCow/llm_chain/releases/tag/v0.5.0 

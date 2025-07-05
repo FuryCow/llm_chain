@@ -1,15 +1,25 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "bundler/setup" rescue nil
+# Load Bundler only if running from the development repo (Gemfile present)
+if File.exist?(File.expand_path("../../Gemfile", __dir__))
+  begin
+    require "bundler/setup"
+  rescue LoadError
+    warn "[llm-chain] Bundler not available; continuing without it"
+  end
+end
+
 require "llm_chain"
 require "optparse"
+require "readline"
 
 USAGE = <<~TEXT.freeze
   Usage: llm-chain <command> [options]
 
   Commands:
     chat <prompt>        Send prompt to quick_chain and print response
+    repl                Start interactive REPL session
     diagnose             Run system diagnostics
     tools list           List registered tools in the default toolset
     version              Print LLMChain gem version
@@ -27,6 +37,46 @@ end
 command = ARGV.shift
 
 case command
+when "repl"
+  puts "LLMChain REPL — type /help for commands, /exit to quit"
+  chain = LLMChain.quick_chain
+
+  loop do
+    line = Readline.readline("> ", true)
+    break if line.nil? || line.strip == "/exit" || line.strip == "/quit"
+
+    case line.strip
+    when "/help"
+      puts "/exit            Exit REPL\n" \
+           "/mem clear       Clear conversation memory\n" \
+           "/tools list      List available tools"
+      next
+    when "/mem clear"
+      chain.memory.clear if chain.memory.respond_to?(:clear)
+      puts "[memory cleared]"
+      next
+    when "/tools list"
+      if chain.tools.respond_to?(:tools_description)
+        puts chain.tools.tools_description
+      else
+        puts "No ToolManager attached"
+      end
+      next
+    end
+
+    # Empty input => skip
+    next if line.strip.empty?
+
+    begin
+      response = chain.ask(line)
+      puts response
+    rescue => e
+      warn "Error: #{e.message}"
+    end
+  end
+
+  puts "Bye!"
+
 when "chat"
   # Collect prompt from remaining args or STDIN
   prompt = if ARGV.empty?

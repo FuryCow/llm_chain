@@ -8,14 +8,16 @@
 
 LLMChain is a Ruby analog of LangChain, providing a unified interface for interacting with various LLMs, built-in tool system, and RAG (Retrieval-Augmented Generation) support.
 
-## 🎉 What's New in v0.5.2
+## 🎉 What's New in v0.5.3
 
-- ✅ **System Diagnostics** - Built-in health checks with `LLMChain.diagnose_system`
-- ✅ **Configuration Validation** - Early detection of setup issues and helpful warnings  
-- ✅ **Enhanced Error Handling** - Retry logic with exponential backoff for network requests
-- ✅ **Robust WebSearch** - Better timeout handling and graceful degradation
-- ✅ **Improved Code Extraction** - Enhanced support for various code block formats
-- ✅ **Debug Logging** - Structured logging with `LLM_CHAIN_DEBUG=true`
+* 🖥️ **New CLI executable** `llm-chain`
+  * `chat` – ask a one-off question from your shell
+  * `repl` – interactive session with conversation memory and helper commands (`/help`, `/mem clear`, `/tools list`)
+  * `diagnose` – run the built-in environment health-check
+  * `tools list` – inspect available tools
+* 🔄 **Bundler-aware loading** – CLI detects if it’s executed inside the gem repo and avoids version clashes with external Gemfiles.
+
+That’s all you need to start talking to LLMs straight from the terminal. See the **Command-line Interface** section below for usage examples.
 
 ## ✨ Key Features
 
@@ -79,6 +81,37 @@ chain = LLMChain::Chain.new(model: "qwen3:1.7b")
 response = chain.ask("Hello! How are you?")
 puts response
 ```
+
+## 🖥️ Command-line Interface (v0.5.3+)
+
+Alongside the Ruby API, LLMChain ships with a convenient CLI executable `llm-chain`.
+
+### Basic commands
+
+```bash
+# One-off question
+llm-chain chat "Hello! How are you?"
+
+# Interactive REPL with conversation memory (/help in session)
+llm-chain repl
+
+# System diagnostics (same as LLMChain.diagnose_system)
+llm-chain diagnose
+
+# List default tools
+llm-chain tools list
+
+# Show gem version
+llm-chain -v
+```
+
+The CLI is installed automatically with the gem. If your shell doesn’t find the command, make sure RubyGems’ bindir is in your `$PATH` or use Bundler-aware launch:
+
+```bash
+bundle exec llm-chain chat "…"
+```
+
+Set `LLM_CHAIN_DEBUG=true` to print extra logs.
 
 ## 🔍 System Diagnostics (v0.5.2+)
 
