@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "bundler/setup" rescue nil
+require "llm_chain"
+require "optparse"
+
+USAGE = <<~TEXT.freeze
+  Usage: llm-chain <command> [options]
+
+  Commands:
+    chat <prompt>        Send prompt to quick_chain and print response
+    diagnose             Run system diagnostics
+    tools list           List registered tools in the default toolset
+    version              Print LLMChain gem version
+
+  Environment variables:
+    LLM_CHAIN_DEBUG      Enable verbose diagnostic logs
+TEXT
+
+# Exit with usage if no command
+if ARGV.empty?
+  warn USAGE
+  exit 1
+end
+
+command = ARGV.shift
+
+case command
+when "chat"
+  # Collect prompt from remaining args or STDIN
+  prompt = if ARGV.empty?
+             puts "Enter prompt (end with CTRL+D):"
+             STDIN.read
+           else
+             ARGV.join(" ")
+           end
+  if prompt.nil? || prompt.strip.empty?
+    warn "No prompt provided"
+    exit 1
+  end
+
+  begin
+    chain = LLMChain.quick_chain
+    response = chain.ask(prompt)
+    puts "\n=== Response ===\n"
+    puts response
+  rescue Interrupt
+    warn "Interrupted"
+  rescue => e
+    warn "Error: #{e.message}"
+    exit 1
+  end
+
+when "diagnose"
+  LLMChain.diagnose_system
+
+when "tools"
+  sub = ARGV.shift
+  case sub
+  when "list"
+    tm = LLMChain::Tools::ToolManager.create_default_toolset
+    puts tm.tools_description
+  else
+    warn "Unknown tools subcommand"; warn USAGE
+    exit 1
+  end
+
+when "version", "--version", "-v"
+  puts LlmChain::VERSION
+
+else
+  warn "Unknown command: #{command}"
+  warn USAGE
+  exit 1
+end 
