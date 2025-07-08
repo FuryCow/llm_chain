@@ -16,6 +16,8 @@ module LLMChain
         Clients::Llama2
       when /gemma3/
         Clients::Gemma3
+      when /deepseek-coder-v2/
+        Clients::DeepseekCoderV2
       else
         raise UnknownModelError, "Unknown model: #{model}"
       end

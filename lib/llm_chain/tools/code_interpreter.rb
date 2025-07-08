@@ -108,26 +108,26 @@ module LLMChain
       end
 
       def extract_code(prompt)
-        # Нормализуем line endings
+        # Normalize line endings (CRLF -> LF)
         normalized_prompt = normalize_line_endings(prompt)
         
-        # 1. Пробуем различные паттерны markdown блоков
+        # 1. Try various markdown block patterns
         code = extract_markdown_code_blocks(normalized_prompt)
         return clean_code(code) if code && !code.empty?
 
-        # 2. Ищем код после ключевых команд в одной строке
+        # 2. Attempt inline "run code:" patterns
         code = extract_inline_code_commands(normalized_prompt)
         return clean_code(code) if code && !code.empty?
 
-        # 3. Ищем код после ключевых слов в разных строках
+        # 3. Look for code after keywords across multiple lines
         code = extract_multiline_code_blocks(normalized_prompt)
         return clean_code(code) if code && !code.empty?
 
-        # 4. Ищем строки, которые выглядят как код
+        # 4. Fallback: detect code-like lines
         code = extract_code_like_lines(normalized_prompt)
         return clean_code(code) if code && !code.empty?
 
-        # 5. Последняя попытка - весь текст после первого кода
+        # 5. Last resort – everything after first code-looking line
         code = extract_fallback_code(normalized_prompt)
         clean_code(code)
       end
@@ -139,19 +139,19 @@ module LLMChain
       end
 
       def extract_markdown_code_blocks(prompt)
-        # Различные паттерны для markdown блоков
+        # Pattern list for markdown code blocks
         patterns = [
-          # Стандартный markdown с указанием языка
+          # Standard fenced block with language tag
           /```(?:ruby|python|javascript|js)\s*\n(.*?)\n```/mi,
-          # Markdown без указания языка
+          # Fenced block without language tag
           /```\s*\n(.*?)\n```/mi,
-          # Markdown с любым языком
+          # Fenced block any language
           /```\w*\s*\n(.*?)\n```/mi,
-          # Тильды вместо backticks
+          # Using ~~~ instead of ```
           /~~~(?:ruby|python|javascript|js)?\s*\n(.*?)\n~~~/mi,
-          # Без переносов строк
+          # Single-line fenced block
           /```(?:ruby|python|javascript|js)?(.*?)```/mi,
-          # Четыре пробела (indented code blocks)
+          # Indented code block (4 spaces)
           /^    (.+)$/m
         ]
         
@@ -164,7 +164,7 @@ module LLMChain
       end
 
       def extract_inline_code_commands(prompt)
-        # Команды в одной строке
+        # Inline "run code" commands
         inline_patterns = [
           /execute\s+code:\s*(.+)/i,
           /run\s+code:\s*(.+)/i,
@@ -189,30 +189,30 @@ module LLMChain
           keyword_line_index = lines.find_index { |line| line.downcase.include?(keyword.downcase) }
           next unless keyword_line_index
           
-          # Берем строки после ключевого слова
+          # Take lines after the keyword
           code_lines = lines[(keyword_line_index + 1)..-1]
           next unless code_lines
           
-          # Найдем первую непустую строку
+          # Find the first non-empty line
           first_code_line = code_lines.find_index { |line| !line.strip.empty? }
           next unless first_code_line
           
-          # Берем все строки начиная с первой непустой
+          # Take all lines starting from the first non-empty line
           relevant_lines = code_lines[first_code_line..-1]
           
-          # Определяем отступ первой строки кода
+          # Determine indentation of the first code line
           first_line = relevant_lines.first
           indent = first_line.match(/^(\s*)/)[1].length
           
-          # Собираем все строки с таким же или большим отступом
+          # Collect all lines with the same or greater indentation
           code_block = []
           relevant_lines.each do |line|
             if line.strip.empty?
-              code_block << "" # Сохраняем пустые строки
+              code_block << "" # Preserve empty lines
             elsif line.match(/^(\s*)/)[1].length >= indent
               code_block << line
             else
-              break # Прекращаем при уменьшении отступа
+              break # Stop when indentation decreases
             end
           end
           
@@ -229,26 +229,26 @@ module LLMChain
           stripped = line.strip
           next false if stripped.empty?
           
-          # Проверяем различные паттерны кода
+          # Check various code patterns
           stripped.match?(/^(def|class|function|var|let|const|print|puts|console\.log)/i) ||
           stripped.match?(/^\w+\s*[=+\-*\/]\s*/) ||
           stripped.match?(/^\s*(if|for|while|return|import|require)[\s(]/i) ||
           stripped.match?(/puts\s+/) ||
           stripped.match?(/print\s*\(/) ||
           stripped.match?(/^\w+\(.*\)/) ||
-          stripped.match?(/^\s*#.*/) ||  # Комментарии
-          stripped.match?(/^\s*\/\/.*/) || # JS комментарии
-          stripped.match?(/^\s*\/\*.*\*\//) # Блочные комментарии
+          stripped.match?(/^\s*#.*/) ||  # Comments
+          stripped.match?(/^\s*\/\/.*/) || # JS comments
+          stripped.match?(/^\s*\/\*.*\*\//) # Block comments
         end
         
         code_lines.join("\n") if code_lines.any?
       end
 
       def extract_fallback_code(prompt)
-        # Последняя попытка - ищем что-то похожее на код
+        # Final attempt – look for anything resembling code
         lines = prompt.split("\n")
         
-        # Найдем первую строку, которая выглядит как код
+        # Find first line that looks like code
         start_index = lines.find_index do |line|
           stripped = line.strip
           stripped.match?(/^(def|class|function|puts|print|console\.log|var|let|const)/i) ||
@@ -258,14 +258,14 @@ module LLMChain
         
         return nil unless start_index
         
-        # Берем все строки после найденной
+        # Take all subsequent lines
         code_lines = lines[start_index..-1]
         
-        # Останавливаемся на первой строке, которая явно не код
+        # Stop when line clearly not code
         end_index = code_lines.find_index do |line|
           stripped = line.strip
-          stripped.match?(/^(что|как|где|когда|зачем|почему|what|how|where|when|why)/i) ||
-          stripped.length > 100 # Слишком длинная строка
+          stripped.match?(/^(что|как|где|когда|зачем|почему|what|how|where|when|why)/i) || # Russian/English question words
+          stripped.length > 100 # Too long -> unlikely code
         end
         
         relevant_lines = end_index ? code_lines[0...end_index] : code_lines
@@ -277,16 +277,16 @@ module LLMChain
         
         lines = code.strip.lines
         
-        # Удаляем только комментарии, которые не являются частью кода
+        # Remove pure comment lines, keep inline comments
         cleaned_lines = lines.reject do |line|
           stripped = line.strip
-          # Удаляем только строки, которые содержат ТОЛЬКО комментарии
-          stripped.match?(/^\s*#[^{]*$/) || # Ruby комментарии (но не интерполяция)
-          stripped.match?(/^\s*\/\/.*$/) || # JS комментарии
-          stripped.match?(/^\s*\/\*.*\*\/\s*$/) # Блочные комментарии
+          # Remove only lines that contain ONLY comments
+          stripped.match?(/^\s*#[^{]*$/) || # Ruby comments (excluding interpolation)
+          stripped.match?(/^\s*\/\/.*$/) || # JS comments
+          stripped.match?(/^\s*\/\*.*\*\/\s*$/) # Block comments
         end
         
-        # Убираем пустые строки в начале и конце, но сохраняем внутри
+        # Remove blank lines at the beginning and end, but keep them inside
         start_index = cleaned_lines.find_index { |line| !line.strip.empty? }
         return "" unless start_index
         
@@ -297,12 +297,12 @@ module LLMChain
       end
 
       def detect_language(code, prompt)
-        # Явное указание языка
+        # Explicit language specification
         return 'ruby' if prompt.match?(/```ruby/i) || prompt.include?('Ruby')
         return 'python' if prompt.match?(/```python/i) || prompt.include?('Python')
         return 'javascript' if prompt.match?(/```(javascript|js)/i) || prompt.include?('JavaScript')
 
-        # Определение по синтаксису
+        # Determine by syntax
         return 'ruby' if code.include?('puts') || code.include?('def ') || code.match?(/\bend\b/)
         return 'python' if code.include?('print(') || code.match?(/def \w+\(.*\):/) || code.include?('import ')
         return 'javascript' if code.include?('console.log') || code.include?('function ') || code.include?('var ') || code.include?('let ')
@@ -329,12 +329,12 @@ module LLMChain
 
       def execute_ruby(code)
         Timeout.timeout(@timeout) do
-          # Создаем временный файл
+          # Create a temporary file
           Tempfile.create(['code', '.rb']) do |file|
             file.write(code)
             file.flush
             
-            # Выполняем код в отдельном процессе
+            # Execute code in a separate process
             result = `ruby #{file.path} 2>&1`
             
             if $?.success?
@@ -369,7 +369,7 @@ module LLMChain
             file.write(code)
             file.flush
             
-            # Пробуем node.js
+            # Try node.js
             result = `node #{file.path} 2>&1`
             
             if $?.success?

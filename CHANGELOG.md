@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2025-01-17
+
+### Added
+* **Deepseek-Coder-V2 Client** - Support for Deepseek-Coder-V2 models via Ollama
+  * Available variants: `deepseek-coder-v2:latest`, `deepseek-coder-v2:16b`, `deepseek-coder-v2:236b`
+  * Optimized settings for code generation tasks (low temperature, large context)
+  * Integrated with existing tool ecosystem (CodeInterpreter, WebSearch, Calculator)
+  * Full compatibility with Chain, ClientRegistry, and CLI
+
+### Changed
+* Updated model support table in README with Deepseek-Coder-V2 information
+
 ## [0.5.3] - 2025-07-05
 
 ### Added
@@ -83,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Initial stable release with core functionality
 
-[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/FuryCow/llm_chain/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/FuryCow/llm_chain/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/FuryCow/llm_chain/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FuryCow/llm_chain/compare/v0.5.0...v0.5.1

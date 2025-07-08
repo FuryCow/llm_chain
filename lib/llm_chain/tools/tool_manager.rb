@@ -8,7 +8,10 @@ module LLMChain
         tools.each { |tool| register_tool(tool) }
       end
 
-      # Регистрирует новый инструмент
+      # Register a new tool instance.
+      #
+      # @param tool [LLMChain::Tools::Base]
+      # @raise [ArgumentError] if object does not inherit from Tools::Base
       def register_tool(tool)
         unless tool.is_a?(Base)
           raise ArgumentError, "Tool must inherit from LLMChain::Tools::Base"
@@ -16,32 +19,36 @@ module LLMChain
         @tools[tool.name] = tool
       end
 
-      # Удаляет инструмент
+      # Unregister a tool by name.
       def unregister_tool(name)
         @tools.delete(name.to_s)
       end
 
-      # Получает инструмент по имени
+      # Fetch a tool by its name.
       def get_tool(name)
         @tools[name.to_s]
       end
 
-      # Возвращает список всех инструментов
+      # @return [Array<LLMChain::Tools::Base>] list of registered tools
       def list_tools
         @tools.values
       end
 
-      # Получает схемы всех инструментов для LLM
+      # Build JSON schemas for all registered tools.
       def get_tools_schema
         @tools.values.map(&:to_schema)
       end
 
-      # Находит подходящие инструменты для промпта
+      # Find tools whose {Tools::Base#match?} returns `true` for the prompt.
       def find_matching_tools(prompt)
         @tools.values.select { |tool| tool.match?(prompt) }
       end
 
-      # Выполняет все подходящие инструменты
+      # Execute every matching tool and collect results.
+      #
+      # @param prompt [String]
+      # @param context [Hash]
+      # @return [Hash] mapping tool name → result hash
       def execute_tools(prompt, context: {})
         matching_tools = find_matching_tools(prompt)
         
@@ -66,7 +73,12 @@ module LLMChain
         results
       end
 
-      # Выполняет конкретный инструмент по имени
+      # Execute a single tool by name.
+      #
+      # @param name [String]
+      # @param prompt [String]
+      # @param context [Hash]
+      # @return [Hash] result wrapper
       def execute_tool(name, prompt, context: {})
         tool = get_tool(name)
         raise ArgumentError, "Tool '#{name}' not found" unless tool
@@ -87,18 +99,19 @@ module LLMChain
         end
       end
 
-      # Создает стандартный набор инструментов
+      # Create default toolset (Calculator, WebSearch, CodeInterpreter, DateTime).
       def self.create_default_toolset
         tools = [
           Calculator.new,
           WebSearch.new,
-          CodeInterpreter.new
+          CodeInterpreter.new,
+          DateTime.new
         ]
         
         new(tools: tools)
       end
 
-      # Создает набор инструментов из конфигурации
+      # Build toolset from a config array.
       def self.from_config(config)
         tools = []
         
@@ -121,7 +134,7 @@ module LLMChain
         new(tools: tools)
       end
 
-      # Форматирует результаты выполнения для включения в промпт
+      # Format tool execution results for inclusion into an LLM prompt.
       def format_tool_results(results)
         return "" if results.empty?
 
@@ -132,7 +145,7 @@ module LLMChain
         "Tool Results:\n#{formatted_results.join("\n\n")}"
       end
 
-      # Получает краткое описание доступных инструментов
+      # Human-readable list of available tools.
       def tools_description
         descriptions = @tools.values.map do |tool|
           "- #{tool.name}: #{tool.description}"
@@ -141,20 +154,20 @@ module LLMChain
         "Available tools:\n#{descriptions.join("\n")}"
       end
 
-      # Проверяет, содержит ли промпт запрос на использование инструментов
+      # Determine if prompt likely needs tool usage.
       def needs_tools?(prompt)
-        # Проверяем явные запросы на использование инструментов
+        # Check for explicit tool usage requests
         return true if prompt.match?(/\b(use tool|call tool|execute|calculate|search|run code)\b/i)
         
-        # Проверяем, есть ли подходящие инструменты
+        # Check if there are any matching tools
         find_matching_tools(prompt).any?
       end
 
-      # Автоматически решает, какие инструменты использовать
+      # Auto-select and execute best tools for prompt.
       def auto_execute(prompt, context: {})
         return {} unless needs_tools?(prompt)
         
-        # Ограничиваем количество одновременно выполняемых инструментов
+        # Limit the number of tools executed at once
         matching_tools = find_matching_tools(prompt)
         selected_tools = select_best_tools(matching_tools, prompt)
         
@@ -181,9 +194,9 @@ module LLMChain
 
       private
 
-      # Выбирает лучшие инструменты для выполнения (ограничение по количеству)
-      def select_best_tools(tools, prompt, limit: 3)
-        # Простая логика приоритизации
+      # Simple heuristic to rank matching tools.
+        def select_best_tools(tools, prompt, limit: 3)
+          # Simple prioritization logic
         prioritized = tools.sort_by do |tool|
           case tool.name
           when 'calculator'

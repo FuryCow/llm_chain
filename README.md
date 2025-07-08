@@ -353,6 +353,7 @@ tool_manager.register_tool(weather)
 | **Qwen/Qwen2** | Ollama | ✅ Supported | 0.5B - 72B parameters |
 | **LLaMA2/3** | Ollama | ✅ Supported | 7B, 13B, 70B |
 | **Gemma** | Ollama | ✅ Supported | 2B, 7B, 9B, 27B |
+| **Deepseek-Coder-V2** | Ollama | ✅ Supported | 16B, 236B - Code specialist |
 | **Mistral/Mixtral** | Ollama | 🔄 In development | 7B, 8x7B |
 | **Claude** | Anthropic | 🔄 Planned | Haiku, Sonnet, Opus |
 | **Command R+** | Cohere | 🔄 Planned | Optimized for RAG |
@@ -375,6 +376,13 @@ llama_chain = LLMChain::Chain.new(
   temperature: 0.8,
   top_p: 0.95
 )
+
+# Deepseek-Coder-V2 for code tasks
+deepseek_chain = LLMChain::Chain.new(model: "deepseek-coder-v2:16b")
+
+# Direct client usage
+deepseek_client = LLMChain::Clients::DeepseekCoderV2.new(model: "deepseek-coder-v2:16b")
+response = deepseek_client.chat("Create a Ruby method to sort an array")
 ```
 
 ## 💾 Memory System

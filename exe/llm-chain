@@ -2,15 +2,18 @@
 # frozen_string_literal: true
 
 # Load Bundler only if running from the development repo (Gemfile present)
-if File.exist?(File.expand_path("../../Gemfile", __dir__))
+if File.exist?(File.expand_path("../Gemfile", __dir__))
+  # In development mode, always load local version
+  require_relative "../lib/llm_chain"
   begin
     require "bundler/setup"
   rescue LoadError
     warn "[llm-chain] Bundler not available; continuing without it"
   end
+else
+  # In production mode, load installed gem
+  require "llm_chain"
 end
-
-require "llm_chain"
 require "optparse"
 require "readline"
 

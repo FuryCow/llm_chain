@@ -1,15 +1,25 @@
 require 'json'
 
 module LLMChain
+  # High-level interface that ties together an LLM client, optional memory,
+  # tool system and RAG retriever. Use {LLMChain.quick_chain} for the common
+  # defaults or build manually via this class.
   class Chain
+    # @return [String] selected model identifier
+    # @return [Object] memory backend
+    # @return [Array, Tools::ToolManager, nil] tools collection
+    # @return [Object, nil] RAG retriever
     attr_reader :model, :memory, :tools, :retriever
 
-    # @param model [String] Имя модели (gpt-4, llama3 и т.д.)
-    # @param memory [#recall, #store] Объект памяти
-    # @param tools [Array<Tool>] Массив инструментов
-    # @param retriever [#search] RAG-ретривер (Weaviate, Pinecone и т.д.)
-    # @param client_options [Hash] Опции для клиента LLM
-    def initialize(model: nil, memory: nil, tools: [], retriever: nil, validate_config: true, **client_options)
+    # Create a new chain.
+    #
+    # @param model [String] model name, e.g. "gpt-4" or "qwen3:1.7b"
+    # @param memory [#recall, #store, nil] conversation memory backend
+    # @param tools [Array<Tools::Base>, Tools::ToolManager, nil]
+    # @param retriever [#search, false, nil] document retriever for RAG
+    # @param validate_config [Boolean] run {ConfigurationValidator}
+    # @param client_options [Hash] extra LLM-client options (api_key etc.)
+    def initialize(model: nil, memory: nil, tools: [], retriever: false, validate_config: true, **client_options)
       # Валидация конфигурации (можно отключить через validate_config: false)
       if validate_config
         begin
@@ -38,12 +48,14 @@ module LLMChain
       @client = ClientRegistry.client_for(model, **client_options)
     end
 
-    # Основной метод для взаимодействия с цепочкой
-    # @param prompt [String] Входной промпт
-    # @param stream [Boolean] Использовать ли потоковый вывод
-    # @param rag_context [Boolean] Использовать ли RAG-контекст
-    # @param rag_options [Hash] Опции для RAG-поиска
-    # @yield [String] Передает чанки ответа если stream=true
+    # Main inference entrypoint.
+    #
+    # @param prompt [String] user prompt
+    # @param stream [Boolean] if `true` yields chunks and returns full string
+    # @param rag_context [Boolean] whether to include retriever context
+    # @param rag_options [Hash] options passed to retriever (eg. :limit)
+    # @yield [String] chunk — called when `stream` is true
+    # @return [String] assistant response
     def ask(prompt, stream: false, rag_context: false, rag_options: {}, &block)
       context = collect_context(prompt, rag_context, rag_options)
       full_prompt = build_prompt(prompt: prompt, **context)
@@ -52,10 +64,12 @@ module LLMChain
       response
     end
 
+    # Collect memory, tool results and RAG docs for current request.
+    # @api private
     def collect_context(prompt, rag_context, rag_options)
-      context = memory.recall(prompt)
+      context        = memory.recall(prompt)
       tool_responses = process_tools(prompt)
-      rag_documents = retrieve_rag_context(prompt, rag_options) if rag_context
+      rag_documents  = retrieve_rag_context(prompt, rag_options) if rag_context
       { memory_context: context, tool_responses: tool_responses, rag_documents: rag_documents }
     end
 

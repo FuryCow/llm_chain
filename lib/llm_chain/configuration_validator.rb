@@ -57,7 +57,7 @@ module LLMChain
       case model.to_s
       when /^gpt/
         validate_openai_requirements!(model)
-      when /qwen|llama|gemma/
+      when /qwen|llama|gemma|deepseek-coder-v2/
         validate_ollama_requirements!(model)
       else
         add_warning("Unknown model type: #{model}. Proceeding with default settings.")
