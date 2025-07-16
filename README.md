@@ -159,7 +159,7 @@ chain = LLMChain.quick_chain(
 # Manual validation
 LLMChain::ConfigurationValidator.validate_chain_config!(
   model: "qwen3:1.7b",
-  tools: LLMChain::Tools::ToolManager.create_default_toolset
+  tools: LLMChain::Tools::ToolManagerFactory.create_default_toolset
 )
 ```
 
@@ -182,7 +182,7 @@ chain.ask("Execute code: puts (1..10).sum")
 # 💻 Result: 55
 
 # Traditional setup
-tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
 chain = LLMChain::Chain.new(
   model: "qwen3:1.7b",
   tools: tool_manager
@@ -342,6 +342,7 @@ end
 
 # Usage
 weather = WeatherTool.new(api_key: "your-key")
+tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
 tool_manager.register_tool(weather)
 ```
 
@@ -488,7 +489,7 @@ chain.ask("Tell me about Ruby history", stream: true) do |chunk|
 end
 
 # Streaming with tools
-tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
 chain = LLMChain::Chain.new(
   model: "qwen3:1.7b", 
   tools: tool_manager
@@ -543,7 +544,7 @@ tools_config = [
   }
 ]
 
-tool_manager = LLMChain::Tools::ToolManager.from_config(tools_config)
+tool_manager = LLMChain::Tools::ToolManagerFactory.from_config(tools_config)
 ```
 
 ### Client Settings
@@ -633,7 +634,7 @@ require 'llm_chain'
 
 class ChatBot
   def initialize
-    @tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+    @tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
     @memory = LLMChain::Memory::Array.new(max_size: 20)
     @chain = LLMChain::Chain.new(
       model: "qwen3:1.7b",
@@ -668,7 +669,7 @@ bot.chat_loop
 ```ruby
 data_chain = LLMChain::Chain.new(
   model: "qwen3:7b",
-  tools: LLMChain::Tools::ToolManager.create_default_toolset
+  tools: LLMChain::Tools::ToolManagerFactory.create_default_toolset
 )
 
 # Analyze CSV data

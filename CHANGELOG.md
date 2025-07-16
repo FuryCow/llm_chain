@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2025-07-17
+
+### Changed
+* **Major refactor:**
+  * Core classes have been extensively refactored for improved modularity, clarity, and maintainability:
+    * Adopted SOLID principles throughout the codebase.
+    * Extracted interfaces for memory, tool management, and all builder components, now located in a dedicated `interfaces` namespace.
+    * Introduced a `builders` folder and builder pattern for prompt, memory context, tool responses, RAG documents, and retriever context.
+    * Improved dependency injection and separation of concerns, making the codebase easier to extend and test.
+    * Centralized error handling and configuration validation.
+    * Enhanced documentation and type signatures for all major classes.
+    * The public API remains minimal and idiomatic, with extensibility via interfaces and factories.
+  * `Chain#ask` method rewritten following Ruby best practices: now declarative, each pipeline stage is a private method, code is cleaner and easier to extend.
+  * All ToolManager creation and configuration is now done via a dedicated factory: `ToolManagerFactory`. Old calls (`ToolManager.create_default_toolset`, `ToolManager.from_config`) have been replaced with factory methods.
+
 ## [0.5.4] - 2025-07-08
 
 ### Added

@@ -112,7 +112,7 @@ when "tools"
   sub = ARGV.shift
   case sub
   when "list"
-    tm = LLMChain::Tools::ToolManager.create_default_toolset
+    tm = LLMChain::Tools::ToolManagerFactory.create_default_toolset
     puts tm.tools_description
   else
     warn "Unknown tools subcommand"; warn USAGE

@@ -101,7 +101,7 @@ end
 
 # 4. Tool Manager Usage
 puts "\n4. 🎯 Tool Manager"
-tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
 
 puts "Registered tools: #{tool_manager.list_tools.map(&:name).join(', ')}"
 
@@ -243,7 +243,7 @@ tools_config = [
   }
 ]
 
-config_tool_manager = LLMChain::Tools::ToolManager.from_config(tools_config)
+config_tool_manager = LLMChain::Tools::ToolManagerFactory.from_config(tools_config)
 puts "Tools from config: #{config_tool_manager.list_tools.map(&:name).join(', ')}"
 
 # Test configuration-based setup

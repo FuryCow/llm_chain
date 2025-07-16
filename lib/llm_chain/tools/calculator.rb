@@ -2,6 +2,13 @@ require 'bigdecimal'
 
 module LLMChain
   module Tools
+    # Performs mathematical calculations and evaluates expressions.
+    # Supports basic arithmetic and common math functions (sqrt, sin, cos, etc).
+    #
+    # @example
+    #   calculator = LLMChain::Tools::Calculator.new
+    #   calculator.call('What is sqrt(16) + 2 * 3?')
+    #   # => { expression: 'sqrt(16) + 2 * 3', result: 10.0, formatted: 'sqrt(16) + 2 * 3 = 10.0' }
     class Calculator < Base
       KEYWORDS = %w[
         calculate compute math equation formula
@@ -11,6 +18,22 @@ module LLMChain
         + - * / = equals
       ].freeze
 
+      # Regex patterns for expression extraction and validation
+      FUNC_EXPR_PATTERN = /\w+\([^\)]+\)(?:\s*[+\-\*\/]\s*(?:-?\d+(?:\.\d+)?|\w+\([^\)]+\)|\([^\)]+\))*)*/.freeze
+      MATH_EXPR_PATTERN = /((?:-?\d+(?:\.\d+)?|\w+\([^\(\)]+\)|\([^\(\)]+\))\s*(?:[+\-\*\/]\s*(?:-?\d+(?:\.\d+)?|\w+\([^\(\)]+\)|\([^\(\)]+\))\s*)+)/.freeze
+      QUOTED_EXPR_PATTERN = /"([^"]+)"|'([^']+)'/.freeze
+      SIMPLE_MATH_PATTERN = /(\d+(?:\.\d+)?\s*[+\-\*\/]\s*\d+(?:\.\d+)?(?:\s*[+\-\*\/]\s*\d+(?:\.\d+)?)*)/.freeze
+      FUNC_CALL_PATTERN = /\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\([^\)]+\)/i.freeze
+      MATH_OPERATOR_PATTERN = /\d+\s*[+\-\*\/]\s*\d+/.freeze
+      MATH_FUNCTION_PATTERN = /\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\(/i.freeze
+      CLEAN_EXTRA_WORDS_PATTERN = /\b(is|what|equals?|result|answer|the)\b/i.freeze
+      CLEAN_NON_MATH_PATTERN = /[^\d+\-*\/().\s]/.freeze
+      MULTIPLE_SPACES_PATTERN = /\s+/.freeze
+      VALID_MATH_EXPRESSION_PATTERN = /\d+(?:\.\d+)?\s*[+\-\*\/]\s*\d+(?:\.\d+)?/.freeze
+      SAFE_EVAL_PATTERN = /\A[\d+\-*\/().\s]+\z/.freeze
+      SAFE_EVAL_METHOD_PATTERN = /\.(abs|round|ceil|floor)\b/.freeze
+
+      # Initializes the calculator tool.
       def initialize
         super(
           name: "calculator",
@@ -24,14 +47,21 @@ module LLMChain
         )
       end
 
+      # Checks if the prompt contains a mathematical expression or keyword.
+      # @param prompt [String]
+      # @return [Boolean]
       def match?(prompt)
         contains_keywords?(prompt, KEYWORDS) || 
         contains_math_pattern?(prompt)
       end
 
+      # Evaluates a mathematical expression found in the prompt.
+      # @param prompt [String]
+      # @param context [Hash]
+      # @return [Hash] result, expression, and formatted string; or error info
       def call(prompt, context: {})
         expression = extract_expression(prompt)
-        return "No mathematical expression found" if expression.empty?
+        return { error: "No mathematical expression found" } if expression.empty?
 
         begin
           result = evaluate_expression(expression)
@@ -49,38 +79,76 @@ module LLMChain
         end
       end
 
+      # Extracts the parameters for the tool from the prompt.
+      # @param prompt [String]
+      # @return [Hash]
       def extract_parameters(prompt)
         { expression: extract_expression(prompt) }
       end
 
       private
 
+      # Checks if the prompt contains a math pattern (numbers and operators or functions).
+      # @param prompt [String]
+      # @return [Boolean]
       def contains_math_pattern?(prompt)
-        # Проверяем наличие математических операторов и чисел
-        prompt.match?(/\d+\s*[+\-*\/]\s*\d+/) ||
-        prompt.match?(/\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\(/i)
+        prompt.match?(MATH_OPERATOR_PATTERN) ||
+        prompt.match?(MATH_FUNCTION_PATTERN)
       end
 
+      # Extracts a mathematical expression from the prompt using multiple strategies.
+      # @param prompt [String]
+      # @return [String]
       def extract_expression(prompt)
-        # Пробуем найти выражение в кавычках
-        quoted = prompt.match(/"([^"]+)"/) || prompt.match(/'([^']+)'/)
-        return quoted[1] if quoted
+        extract_math_expression(prompt).tap { |expr| return expr unless expr.empty? }
+        extract_quoted_expression(prompt).tap { |expr| return expr unless expr.empty? }
+        extract_simple_math_expression(prompt).tap { |expr| return expr unless expr.empty? }
+        extract_function_call(prompt).tap { |expr| return expr unless expr.empty? }
+        extract_keyword_expression(prompt).tap { |expr| return expr unless expr.empty? }
+        ""
+      end
 
-        # Пробуем найти простое выражение в тексте сначала (более точно)
-        math_expr = prompt.match(/(\d+(?:\.\d+)?\s*[+\-*\/]\s*\d+(?:\.\d+)?(?:\s*[+\-*\/]\s*\d+(?:\.\d+)?)*)/)
-        return math_expr[1].strip if math_expr
+      # Extracts a complex math expression (numbers, functions, operators, spaces) from the prompt.
+      def extract_math_expression(prompt)
+        # First, try to match an expression starting with a function call and any number of operator+operand pairs
+        func_expr = prompt.match(FUNC_EXPR_PATTERN)
+        if func_expr
+          expr = func_expr[0].strip.gsub(/[.?!]$/, '')
+          puts "[DEBUG_CALC] Extracted math expression (func first): '#{expr}' from prompt: '#{prompt}'" if ENV['DEBUG_CALC']
+          return expr
+        end
+        # Fallback to previous logic
+        match = prompt.match(MATH_EXPR_PATTERN)
+        expr = match ? match[1].strip.gsub(/[.?!]$/, '') : ""
+        puts "[DEBUG_CALC] Extracted math expression: '#{expr}' from prompt: '#{prompt}'" if ENV['DEBUG_CALC']
+        expr
+      end
 
-        # Ищем функции
-        func_expr = prompt.match(/\b(sqrt|sin|cos|tan|log|ln|exp|abs|round|ceil|floor)\s*\([^)]+\)/i)
-        return func_expr[0] if func_expr
+      # Extracts an expression in quotes from the prompt.
+      def extract_quoted_expression(prompt)
+        quoted = prompt.match(QUOTED_EXPR_PATTERN)
+        quoted ? (quoted[1] || quoted[2]) : ""
+      end
 
-        # Ищем выражение после ключевых слов
+      # Extracts a simple math expression (e.g., 2 + 2) from the prompt.
+      def extract_simple_math_expression(prompt)
+        math_expr = prompt.match(SIMPLE_MATH_PATTERN)
+        math_expr ? math_expr[1].strip : ""
+      end
+
+      # Extracts a function call (e.g., sqrt(16)) from the prompt.
+      def extract_function_call(prompt)
+        func_expr = prompt.match(FUNC_CALL_PATTERN)
+        func_expr ? func_expr[0] : ""
+      end
+
+      # Extracts an expression after a math keyword from the prompt.
+      def extract_keyword_expression(prompt)
         KEYWORDS.each do |keyword|
           if prompt.downcase.include?(keyword)
             escaped_keyword = Regexp.escape(keyword)
             after_keyword = prompt.split(/#{escaped_keyword}/i, 2)[1]
             if after_keyword
-              # Извлекаем математическое выражение
               expr = after_keyword.strip.split(/[.!?]/).first
               if expr
                 cleaned = clean_expression(expr)
@@ -89,44 +157,47 @@ module LLMChain
             end
           end
         end
-
         ""
       end
 
+      # Cleans up a candidate expression, removing extra words and keeping only numbers and operators.
+      # @param expr [String]
+      # @return [String]
       def clean_expression(expr)
-        # Удаляем лишние слова но оставляем числа и операторы
-        cleaned = expr.gsub(/\b(is|what|equals?|result|answer|the)\b/i, '')
-                     .gsub(/[^\d+\-*\/().\s]/, ' ')  # заменяем на пробелы, не удаляем
-                     .gsub(/\s+/, ' ')  # убираем множественные пробелы
+        cleaned = expr.gsub(CLEAN_EXTRA_WORDS_PATTERN, '')
+                     .gsub(CLEAN_NON_MATH_PATTERN, ' ')
+                     .gsub(MULTIPLE_SPACES_PATTERN, ' ')
                      .strip
-        
-        # Проверяем что результат похож на математическое выражение
-        if cleaned.match?(/\d+(?:\.\d+)?\s*[+\-*\/]\s*\d+(?:\.\d+)?/)
+        if cleaned.match?(VALID_MATH_EXPRESSION_PATTERN)
           cleaned
         else
           ""
         end
       end
 
+      # Evaluates a mathematical expression, supporting common math functions.
+      # @param expression [String]
+      # @return [Numeric]
       def evaluate_expression(expression)
-        # Заменяем математические функции на Ruby-методы
         expr = expression.downcase
-                        .gsub(/sqrt\s*\(([^)]+)\)/) { "Math.sqrt(#{$1})" }
-                        .gsub(/sin\s*\(([^)]+)\)/) { "Math.sin(#{$1})" }
-                        .gsub(/cos\s*\(([^)]+)\)/) { "Math.cos(#{$1})" }
-                        .gsub(/tan\s*\(([^)]+)\)/) { "Math.tan(#{$1})" }
-                        .gsub(/log\s*\(([^)]+)\)/) { "Math.log10(#{$1})" }
-                        .gsub(/ln\s*\(([^)]+)\)/) { "Math.log(#{$1})" }
-                        .gsub(/exp\s*\(([^)]+)\)/) { "Math.exp(#{$1})" }
-                        .gsub(/abs\s*\(([^)]+)\)/) { "(#{$1}).abs" }
-                        .gsub(/round\s*\(([^)]+)\)/) { "(#{$1}).round" }
-                        .gsub(/ceil\s*\(([^)]+)\)/) { "(#{$1}).ceil" }
-                        .gsub(/floor\s*\(([^)]+)\)/) { "(#{$1}).floor" }
-
-        # Безопасная оценка выражения
+        max_iterations = 10
+        max_iterations.times do
+          before = expr.dup
+          expr.gsub!(/(?<!Math\.)sqrt\s*\((.*?)\)/, 'Math.sqrt(\1)')
+          expr.gsub!(/(?<!Math\.)sin\s*\((.*?)\)/, 'Math.sin(\1)')
+          expr.gsub!(/(?<!Math\.)cos\s*\((.*?)\)/, 'Math.cos(\1)')
+          expr.gsub!(/(?<!Math\.)tan\s*\((.*?)\)/, 'Math.tan(\1)')
+          expr.gsub!(/(?<!Math\.)log\s*\((.*?)\)/, 'Math.log10(\1)')
+          expr.gsub!(/(?<!Math\.)ln\s*\((.*?)\)/, 'Math.log(\1)')
+          expr.gsub!(/(?<!Math\.)exp\s*\((.*?)\)/, 'Math.exp(\1)')
+          expr.gsub!(/(?<!\.)abs\s*\((.*?)\)/, '(\1).abs')
+          expr.gsub!(/(?<!\.)round\s*\((.*?)\)/, '(\1).round')
+          expr.gsub!(/(?<!\.)ceil\s*\((.*?)\)/, '(\1).ceil')
+          expr.gsub!(/(?<!\.)floor\s*\((.*?)\)/, '(\1).floor')
+          break if expr == before
+        end
+        puts "[DEBUG_CALC] Final eval expression: '#{expr}'" if ENV['DEBUG_CALC']
         result = safe_eval(expr)
-        
-        # Округляем результат до разумного количества знаков
         if result.is_a?(Float)
           result.round(10)
         else
@@ -134,18 +205,20 @@ module LLMChain
         end
       end
 
+      # Safely evaluates a mathematical expression.
+      # Only allows numbers, operators, parentheses, and supported Math methods.
+      # @param expression [String]
+      # @return [Numeric]
       def safe_eval(expression)
-        # Проверяем, что выражение содержит только безопасные символы
-        unless expression.match?(/\A[\d+\-*\/().\s]+\z/) || 
+        unless expression.match?(SAFE_EVAL_PATTERN) || 
                expression.include?('Math.') || 
-               expression.match?(/\.(abs|round|ceil|floor)\b/)
+               expression.match?(SAFE_EVAL_METHOD_PATTERN)
           raise "Unsafe expression: #{expression}"
         end
-
-        # Оцениваем выражение
         eval(expression)
       end
 
+      # @return [Array<String>]
       def required_parameters
         ['expression']
       end

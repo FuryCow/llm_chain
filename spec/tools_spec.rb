@@ -28,6 +28,34 @@ RSpec.describe LLMChain::Tools do
         result = calculator.call('Calculate invalid expression')
         expect(result).to have_key(:error)
       end
+
+      context 'edge cases' do
+        it 'handles negative numbers' do
+          result = calculator.call('What is -5 + 3?')
+          expect(result[:result]).to eq(-2)
+        end
+
+        it 'handles division by zero' do
+          result = calculator.call('What is 10 / 0?')
+          expect(result).to have_key(:error)
+          expect(result[:error].to_s).to match(/divided by 0|ZeroDivisionError/i)
+        end
+
+        it 'handles nested functions' do
+          result = calculator.call('What is sqrt(4 + 5)?')
+          expect(result[:result]).to be_within(0.01).of(3.0)
+        end
+
+        it 'returns error for invalid expression' do
+          result = calculator.call('Calculate foo bar baz')
+          expect(result).to have_key(:error)
+        end
+
+        it 'handles empty prompt' do
+          result = calculator.call('')
+          expect(result).to have_key(:error)
+        end
+      end
     end
   end
 
@@ -37,7 +65,7 @@ RSpec.describe LLMChain::Tools do
     describe '#match?' do
       it 'matches search queries' do
         expect(web_search.match?('Search for Ruby gems')).to be true
-        expect(web_search.match?('What is the weather today?')).to be true
+        expect(web_search.match?('What is the weather today?')).to be false
         expect(web_search.match?('Hello friend')).to be false
       end
     end
@@ -46,6 +74,28 @@ RSpec.describe LLMChain::Tools do
       it 'extracts query from prompt' do
         query = web_search.send(:extract_query, 'Search for Ruby programming language')
         expect(query).to include('Ruby programming language')
+      end
+    end
+
+    context 'edge cases' do
+      it 'does not match mathematical prompts' do
+        expect(web_search.match?('What is 2 + 2?')).to be false
+        expect(web_search.match?('Calculate 15 * 3')).to be false
+      end
+
+      it 'matches only search-related keywords' do
+        expect(web_search.match?('Search for Ruby gems')).to be true
+        expect(web_search.match?('Find information about AI')).to be true
+        expect(web_search.match?('Lookup weather today')).to be true
+        expect(web_search.match?('Tell me a joke')).to be false
+      end
+
+      it 'handles empty prompt' do
+        expect(web_search.match?('')).to be false
+      end
+
+      it 'handles prompt with multiple keywords' do
+        expect(web_search.match?('Search and calculate 2 + 2')).to be true
       end
     end
   end
@@ -72,7 +122,7 @@ RSpec.describe LLMChain::Tools do
   describe LLMChain::Tools::ToolManager do
     let(:calculator) { LLMChain::Tools::Calculator.new }
     let(:web_search) { LLMChain::Tools::WebSearch.new }
-    let(:tool_manager) { described_class.new(tools: [calculator]) }
+    let(:tool_manager) { LLMChain::Tools::ToolManagerFactory.create_default_toolset }
 
     describe '#register_tool' do
       it 'registers a new tool' do
@@ -88,7 +138,7 @@ RSpec.describe LLMChain::Tools do
     describe '#find_matching_tools' do
       it 'finds tools that match the prompt' do
         tools = tool_manager.find_matching_tools('Calculate 2 + 2')
-        expect(tools).to include(calculator)
+        expect(tools.any? { |t| t.is_a?(LLMChain::Tools::Calculator) }).to be true
       end
     end
 
@@ -102,8 +152,8 @@ RSpec.describe LLMChain::Tools do
 
     describe '.create_default_toolset' do
       it 'creates a toolset with default tools' do
-        toolset = described_class.create_default_toolset
-        expect(toolset.list_tools.length).to eq(3)
+        toolset = LLMChain::Tools::ToolManagerFactory.create_default_toolset
+        expect(toolset.list_tools.length).to eq(4)
         expect(toolset.get_tool('calculator')).to be_a(LLMChain::Tools::Calculator)
       end
     end
@@ -111,10 +161,11 @@ RSpec.describe LLMChain::Tools do
 
   describe 'Integration with Chain' do
     let(:memory) { LLMChain::Memory::Array.new }
-    let(:tool_manager) { LLMChain::Tools::ToolManager.create_default_toolset }
-    let(:client) { double("Client", chat: "Test response") }
+    let(:tool_manager) { LLMChain::Tools::ToolManagerFactory.create_default_toolset }
+    let(:client) { double("Client") }
 
     before do
+      allow(client).to receive(:chat) { |prompt| prompt }
       allow(LLMChain::ClientRegistry).to receive(:client_for).and_return(client)
     end
 

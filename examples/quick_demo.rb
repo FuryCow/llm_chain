@@ -71,7 +71,7 @@ end
 # 5. Chain with tools
 puts "\n5. 🛠️ Chain with automatic tools"
 begin
-  tool_manager = LLMChain::Tools::ToolManager.create_default_toolset
+  tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset
   smart_chain = LLMChain::Chain.new(
     model: "qwen3:1.7b",
     tools: tool_manager,

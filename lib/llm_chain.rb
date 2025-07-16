@@ -23,6 +23,7 @@ require_relative "llm_chain/embeddings/clients/local/weaviate_retriever"
 require_relative "llm_chain/embeddings/clients/local/ollama_client"
 
 module LLMChain
+  # Exception classes
   class Error < StandardError; end
   class UnknownModelError < Error; end
   class InvalidModelVersion < Error; end
@@ -32,20 +33,34 @@ module LLMChain
   class MemoryError < Error; end
 end
 
-# Загружаем валидатор после определения базовых классов
+# Load validator and diagnostics after base classes are defined
 require_relative "llm_chain/configuration_validator"
+require_relative "llm_chain/system_diagnostics"
 
 module LLMChain
-
-  # Простая система конфигурации
+  # Simple configuration system for LLMChain
   class Configuration
+    # Configuration constants
+    DEFAULT_MODEL = "qwen3:1.7b"
+    DEFAULT_TIMEOUT = 30
+    DEFAULT_MEMORY_SIZE = 100
+    DEFAULT_SEARCH_ENGINE = :google
+
     attr_accessor :default_model, :timeout, :memory_size, :search_engine
 
     def initialize
-      @default_model = "qwen3:1.7b"
-      @timeout = 30
-      @memory_size = 100
-      @search_engine = :google
+      @default_model = DEFAULT_MODEL
+      @timeout = DEFAULT_TIMEOUT
+      @memory_size = DEFAULT_MEMORY_SIZE
+      @search_engine = DEFAULT_SEARCH_ENGINE
+    end
+
+    def reset_to_defaults
+      initialize
+    end
+
+    def valid?
+      default_model && timeout.positive? && memory_size.positive?
     end
   end
 
@@ -60,61 +75,46 @@ module LLMChain
       yield(configuration)
     end
 
-    # Быстрое создание цепочки с настройками по умолчанию
+    def reset_configuration
+      @configuration = nil
+    end
+
+    # Quick chain creation with default settings
     def quick_chain(model: nil, tools: true, memory: true, validate_config: true, **options)
-      model ||= configuration.default_model
-      
-      chain_options = {
-        model: model,
+      chain_options = build_chain_options(model, tools, memory, validate_config, **options)
+      Chain.new(**chain_options)
+    end
+
+    # System diagnostics
+    def diagnose_system
+      SystemDiagnostics.run
+    end
+
+    private
+
+    def build_chain_options(model, tools, memory, validate_config, **options)
+      {
+        model: model || configuration.default_model,
+        tools: build_tools(tools),
+        memory: build_memory(memory),
         retriever: false,
         validate_config: validate_config,
         **options
       }
-      
-      if tools
-        tool_manager = Tools::ToolManager.create_default_toolset
-        chain_options[:tools] = tool_manager
-      end
-      
-      if memory
-        chain_options[:memory] = Memory::Array.new(max_size: configuration.memory_size)
-      end
-      
-      Chain.new(**chain_options)
     end
 
-    # Диагностика системы
-    def diagnose_system
-      puts "🔍 LLMChain System Diagnostics"
-      puts "=" * 50
-      
-      results = ConfigurationValidator.validate_environment
-      
-      puts "\n📋 System Components:"
-      puts "  Ruby: #{results[:ruby] ? '✅' : '❌'} (#{RUBY_VERSION})"
-      puts "  Python: #{results[:python] ? '✅' : '❌'}"
-      puts "  Node.js: #{results[:node] ? '✅' : '❌'}"
-      puts "  Internet: #{results[:internet] ? '✅' : '❌'}"
-      puts "  Ollama: #{results[:ollama] ? '✅' : '❌'}"
-      
-      puts "\n🔑 API Keys:"
-      results[:apis].each do |api, available|
-        puts "  #{api.to_s.capitalize}: #{available ? '✅' : '❌'}"
-      end
-      
-      if results[:warnings].any?
-        puts "\n⚠️  Warnings:"
-        results[:warnings].each { |warning| puts "  • #{warning}" }
-      end
-      
-      puts "\n💡 Recommendations:"
-      puts "  • Install missing components for full functionality"
-      puts "  • Configure API keys for enhanced features"
-      puts "  • Start Ollama server: ollama serve" unless results[:ollama]
-      
-      puts "\n" + "=" * 50
-      
-      results
+    def build_tools(tools)
+      return Tools::ToolManagerFactory.create_default_toolset if tools == true
+      return nil if tools == false
+
+      tools
+    end
+
+    def build_memory(memory)
+      return Memory::Array.new(max_size: configuration.memory_size) if memory == true
+      return nil if memory == false
+
+      memory
     end
   end
 end

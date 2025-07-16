@@ -1,4 +1,11 @@
 require 'json'
+require_relative 'memory/array'
+require_relative 'tools/tool_manager_factory'
+require_relative 'builders/prompt'
+require_relative 'builders/memory_context'
+require_relative 'builders/tool_responses'
+require_relative 'builders/rag_documents'
+require_relative 'builders/retriever_context'
 
 module LLMChain
   # High-level interface that ties together an LLM client, optional memory,
@@ -14,18 +21,29 @@ module LLMChain
     # Create a new chain.
     #
     # @param model [String] model name, e.g. "gpt-4" or "qwen3:1.7b"
-    # @param memory [#recall, #store, nil] conversation memory backend
-    # @param tools [Array<Tools::Base>, Tools::ToolManager, nil]
+    # @param memory [LLMChain::Interfaces::Memory] conversation memory backend
+    # @param tools [LLMChain::Interfaces::ToolManager, Array, true, false, nil]
     # @param retriever [#search, false, nil] document retriever for RAG
+    # @param prompt_builder [LLMChain::Interfaces::Builders::Prompt]
+    # @param memory_context_builder [LLMChain::Interfaces::Builders::MemoryContext]
+    # @param tool_responses_builder [LLMChain::Interfaces::Builders::ToolResponses]
+    # @param rag_documents_builder [LLMChain::Interfaces::Builders::RagDocuments]
+    # @param retriever_context_builder [LLMChain::Interfaces::Builders::RetrieverContext]
     # @param validate_config [Boolean] run {ConfigurationValidator}
     # @param client_options [Hash] extra LLM-client options (api_key etc.)
-    def initialize(model: nil, memory: nil, tools: [], retriever: false, validate_config: true, **client_options)
-      # Валидация конфигурации (можно отключить через validate_config: false)
+    def initialize(
+      model: nil,
+      memory: nil,
+      tools: true,
+      retriever: false,
+      validate_config: true,
+      **client_options
+    )
       if validate_config
         begin
           ConfigurationValidator.validate_chain_config!(
-            model: model, 
-            tools: tools, 
+            model: model,
+            tools: tools,
             memory: memory,
             retriever: retriever,
             **client_options
@@ -37,7 +55,18 @@ module LLMChain
 
       @model = model
       @memory = memory || Memory::Array.new
-      @tools = tools
+      @tools =
+        if tools == true
+          Tools::ToolManagerFactory.create_default_toolset
+        elsif tools.is_a?(Array)
+          Tools::ToolManager.new(tools: tools)
+        elsif tools.is_a?(Tools::ToolManager)
+          tools
+        elsif tools.is_a?(Hash) && tools[:config]
+          Tools::ToolManagerFactory.from_config(tools[:config])
+        else
+          nil
+        end
       @retriever = if retriever.nil?
                     Embeddings::Clients::Local::WeaviateRetriever.new
                   elsif retriever == false
@@ -46,6 +75,13 @@ module LLMChain
                     retriever
                   end
       @client = ClientRegistry.client_for(model, **client_options)
+
+      # Always use default builders
+      @prompt_builder = Builders::Prompt.new
+      @memory_context_builder = Builders::MemoryContext.new
+      @tool_responses_builder = Builders::ToolResponses.new
+      @rag_documents_builder = Builders::RagDocuments.new
+      @retriever_context_builder = Builders::RetrieverContext.new
     end
 
     # Main inference entrypoint.
@@ -57,94 +93,45 @@ module LLMChain
     # @yield [String] chunk — called when `stream` is true
     # @return [String] assistant response
     def ask(prompt, stream: false, rag_context: false, rag_options: {}, &block)
-      context = collect_context(prompt, rag_context, rag_options)
-      full_prompt = build_prompt(prompt: prompt, **context)
-      response = generate_response(full_prompt, stream: stream, &block)
-      memory.store(prompt, response)
-      response
-    end
+      memory_context = build_memory_context(prompt)
+      tool_responses = build_tool_responses(prompt)
+      rag_documents  = build_rag_documents(prompt, rag_context, rag_options)
+      full_prompt    = build_full_prompt(prompt, memory_context, tool_responses, rag_documents)
 
-    # Collect memory, tool results and RAG docs for current request.
-    # @api private
-    def collect_context(prompt, rag_context, rag_options)
-      context        = memory.recall(prompt)
-      tool_responses = process_tools(prompt)
-      rag_documents  = retrieve_rag_context(prompt, rag_options) if rag_context
-      { memory_context: context, tool_responses: tool_responses, rag_documents: rag_documents }
+      response = generate_response(full_prompt, stream: stream, &block)
+      store_memory(prompt, response)
+      response
     end
 
     private
 
-    def retrieve_rag_context(query, options = {})
-      return [] unless @retriever
-
-      limit = options[:limit] || 3
-      @retriever.search(query, limit: limit)
-    rescue => e
-      raise Error, "Cannot retrieve rag context"
+    def build_memory_context(prompt)
+      history = @memory&.recall(prompt)
+      @memory_context_builder.build(history)
     end
 
-    def process_tools(prompt)
-      return {} if @tools.nil? || (@tools.respond_to?(:empty?) && @tools.empty?)
-      
-      # Если @tools - это ToolManager
-      if @tools.respond_to?(:auto_execute)
-        @tools.auto_execute(prompt)
-      elsif @tools.is_a?(Array)
-        # Старая логика для массива инструментов
-        @tools.each_with_object({}) do |tool, acc|
-          if tool.match?(prompt)
-            response = tool.call(prompt)
-            acc[tool.name] = response unless response.nil?
-          end
-        end
-      else
-        {}
-      end
+    def build_tool_responses(prompt)
+      results = @tools&.execute_tools(prompt) || {}
+      @tool_responses_builder.build(results)
     end
 
-    def build_prompt(prompt:, memory_context: nil, tool_responses: {}, rag_documents: nil)
-      parts = []
-      parts << build_memory_context(memory_context) if memory_context&.any?
-      parts << build_rag_documents(rag_documents) if rag_documents&.any?
-      parts << build_tool_responses(tool_responses) unless tool_responses.empty?
-      parts << "Сurrent question: #{prompt}"
-      parts.join("\n\n")
+    def build_rag_documents(prompt, rag_context, rag_options)
+      return "" unless rag_context && @retriever
+      docs = @retriever_context_builder.retrieve(@retriever, prompt, rag_options)
+      @rag_documents_builder.build(docs)
     end
 
-    def build_memory_context(memory_context)
-      parts = ["Dialogue history:"]
-      memory_context.each do |item|
-        parts << "User: #{item[:prompt]}"
-        parts << "Assistant: #{item[:response]}"
-      end
-      parts.join("\n")
+    def build_full_prompt(prompt, memory_context, tool_responses, rag_documents)
+      @prompt_builder.build(
+        memory_context: memory_context,
+        tool_responses: tool_responses,
+        rag_documents: rag_documents,
+        prompt: prompt
+      )
     end
 
-    def build_rag_documents(rag_documents)
-      parts = ["Relevant documents:"]
-      rag_documents.each_with_index do |doc, i|
-        parts << "Document #{i + 1}: #{doc['content']}"
-        parts << "Metadata: #{doc['metadata'].to_json}" if doc['metadata']
-      end
-      parts.join("\n")
-    end
-
-    def build_tool_responses(tool_responses)
-      parts = ["Tool results:"]
-      tool_responses.each do |name, response|
-        if response.is_a?(Hash) && response[:formatted]
-          # Особая обработка для поиска без результатов
-          if name == "web_search" && response[:results] && response[:results].empty?
-            parts << "#{name}: No search results found. Please answer based on your knowledge, but indicate that search was unavailable."
-          else
-            parts << "#{name}: #{response[:formatted]}"
-          end
-        else
-          parts << "#{name}: #{response}"
-        end
-      end
-      parts.join("\n")
+    def store_memory(prompt, response)
+      @memory&.store(prompt, response)
     end
 
     def generate_response(prompt, stream: false, &block)

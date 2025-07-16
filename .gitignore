@@ -10,6 +10,7 @@
 # rspec failure tracking
 .rspec_status
 /.vscode/
+/.cursor/**/*
 usage_example.rb
 TODO_*.md
 *.gem
