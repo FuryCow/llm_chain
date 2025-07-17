@@ -1,7 +1,7 @@
 # 🦾 LLMChain
 
 [![Gem Version](https://badge.fury.io/rb/llm_chain.svg)](https://badge.fury.io/rb/llm_chain)
-[![Tests](https://github.com/FuryCow/llm_chain/actions/workflows/tests.yml/badge.svg)](https://github.com/FuryCow/llm_chain/actions)
+[![RSpec](https://github.com/FuryCow/llm_chain/actions/workflows/rspec.yml/badge.svg?branch=master)](https://github.com/FuryCow/llm_chain/actions/workflows/rspec.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
 **A powerful Ruby library for working with Large Language Models (LLMs) with intelligent tool system**
