@@ -1,11 +1,11 @@
-require 'json'
-require_relative 'memory/array'
-require_relative 'tools/tool_manager_factory'
-require_relative 'builders/prompt'
-require_relative 'builders/memory_context'
-require_relative 'builders/tool_responses'
-require_relative 'builders/rag_documents'
-require_relative 'builders/retriever_context'
+require "json"
+require_relative "memory/array"
+require_relative "tools/tool_manager_factory"
+require_relative "builders/prompt"
+require_relative "builders/memory_context"
+require_relative "builders/tool_responses"
+require_relative "builders/rag_documents"
+require_relative "builders/retriever_context"
 
 module LLMChain
   # High-level interface that ties together an LLM client, optional memory,
@@ -68,11 +68,11 @@ module LLMChain
           nil
         end
       @retriever = if retriever.nil?
-                    Embeddings::Clients::Local::WeaviateRetriever.new
-                  elsif retriever == false
-                    nil
-                  else
-                    retriever
+                     Embeddings::Clients::Local::WeaviateRetriever.new
+                   elsif retriever == false
+                     nil
+                   else
+                     retriever
                   end
       @client = ClientRegistry.client_for(model, **client_options)
 
@@ -117,6 +117,7 @@ module LLMChain
 
     def build_rag_documents(prompt, rag_context, rag_options)
       return "" unless rag_context && @retriever
+
       docs = @retriever_context_builder.retrieve(@retriever, prompt, rag_options)
       @rag_documents_builder.build(docs)
     end
