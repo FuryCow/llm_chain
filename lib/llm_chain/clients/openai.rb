@@ -21,7 +21,7 @@ module LLMChain
         @default_options = DEFAULT_OPTIONS.merge(options)
       end
 
-      def chat(messages, stream: false, **options)
+      def chat(messages, stream: false, **options, &block)
         params = build_request_params(messages, stream: stream, **options)
 
         if stream

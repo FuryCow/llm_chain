@@ -49,8 +49,8 @@ module LLMChain
       def timezone_offset(tz)
         # Fallback: use TZInfo if available, else default to system
         require 'tzinfo'
-        TZInfo::Timezone.get(tz).current_period.offset
-      rescue LoadError, TZInfo::InvalidTimezoneIdentifier
+        TZInfo::Timezone.get(tz).current_period.offset.utc_total_offset
+      rescue LoadError, NameError, TZInfo::InvalidTimezoneIdentifier
         0
       end
     end

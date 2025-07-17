@@ -1,9 +1,12 @@
-# Gemfile
 source "https://rubygems.org"
 
-gemspec  # Автоматически подхватывает зависимости из gemspec
+gemspec
 
 group :development, :test do
-  gem "rspec", "~> 3.0"       # Только для тестов
-  gem "webmock", "~> 3.0"     # Моки HTTP-запросов
+  gem "rspec", "~> 3.0"
+  gem "webmock", "~> 3.0"
+end
+
+group :test do
+  gem "simplecov", require: false
 end

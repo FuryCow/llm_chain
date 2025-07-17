@@ -1,64 +1,171 @@
 require 'spec_helper'
+require 'llm_chain/tools/calculator'
 
-RSpec.describe LLMChain::Tools do
-  describe LLMChain::Tools::Calculator do
-    let(:calculator) { described_class.new }
+RSpec.describe LLMChain::Tools::Calculator do
+  let(:calculator) { described_class.new }
 
-    describe '#match?' do
-      it 'matches mathematical expressions' do
-        expect(calculator.match?('What is 2 + 2?')).to be true
-        expect(calculator.match?('Calculate 15 * 3')).to be true
-        expect(calculator.match?('Hello world')).to be false
-      end
+  describe '#match?' do
+    it 'matches mathematical expressions' do
+      expect(calculator.match?('What is 2 + 2?')).to be true
+      expect(calculator.match?('Calculate 15 * 3')).to be true
+      expect(calculator.match?('Hello world')).to be false
+    end
+  end
+
+  describe '#call' do
+    it 'evaluates simple expressions' do
+      result = calculator.call('Calculate 2 + 2')
+      expect(result[:result]).to eq(4)
+      expect(result[:expression]).to eq('2 + 2')
     end
 
-    describe '#call' do
-      it 'evaluates simple expressions' do
-        result = calculator.call('Calculate 2 + 2')
-        expect(result[:result]).to eq(4)
-        expect(result[:expression]).to eq('2 + 2')
+    it 'handles complex expressions' do
+      result = calculator.call('What is sqrt(16) + 2 * 3?')
+      expect(result[:result]).to eq(10.0)
+    end
+
+    it 'handles errors gracefully' do
+      result = calculator.call('Calculate invalid expression')
+      expect(result).to have_key(:error)
+    end
+
+    context 'edge cases' do
+      it 'handles negative numbers' do
+        result = calculator.call('What is -5 + 3?')
+        expect(result[:result]).to eq(-2)
       end
 
-      it 'handles complex expressions' do
-        result = calculator.call('What is sqrt(16) + 2 * 3?')
-        expect(result[:result]).to eq(10.0)
+      it 'handles division by zero' do
+        result = calculator.call('What is 10 / 0?')
+        expect(result).to have_key(:error)
+        expect(result[:error].to_s).to match(/divided by 0|ZeroDivisionError/i)
       end
 
-      it 'handles errors gracefully' do
-        result = calculator.call('Calculate invalid expression')
+      it 'handles nested functions' do
+        result = calculator.call('What is sqrt(4 + 5)?')
+        expect(result[:result]).to be_within(0.01).of(3.0)
+      end
+
+      it 'returns error for invalid expression' do
+        result = calculator.call('Calculate foo bar baz')
         expect(result).to have_key(:error)
       end
 
-      context 'edge cases' do
-        it 'handles negative numbers' do
-          result = calculator.call('What is -5 + 3?')
-          expect(result[:result]).to eq(-2)
-        end
+      it 'handles empty prompt' do
+        result = calculator.call('')
+        expect(result).to have_key(:error)
+      end
 
-        it 'handles division by zero' do
-          result = calculator.call('What is 10 / 0?')
-          expect(result).to have_key(:error)
-          expect(result[:error].to_s).to match(/divided by 0|ZeroDivisionError/i)
-        end
+      it 'handles quoted expressions' do
+        result = calculator.call('Calculate "2 + 2"')
+        expect(result[:result]).to eq(4)
+      end
 
-        it 'handles nested functions' do
-          result = calculator.call('What is sqrt(4 + 5)?')
-          expect(result[:result]).to be_within(0.01).of(3.0)
-        end
+      it 'handles function call without keyword' do
+        result = calculator.call('sqrt(25)')
+        expect(result[:result]).to eq(5.0)
+      end
 
-        it 'returns error for invalid expression' do
-          result = calculator.call('Calculate foo bar baz')
-          expect(result).to have_key(:error)
-        end
+      it 'extracts expression after keyword' do
+        result = calculator.call('sum 2 + 2')
+        expect(result[:result]).to eq(4)
+      end
 
-        it 'handles empty prompt' do
-          result = calculator.call('')
-          expect(result).to have_key(:error)
-        end
+      it 'returns error for cleaned non-math expression' do
+        result = calculator.call('Calculate the answer')
+        expect(result).to have_key(:error)
       end
     end
   end
 
+  describe 'private methods' do
+    it 'raises error for unsafe eval' do
+      puts "Calculator class: ", calculator.class.name
+      expect { calculator.send(:safe_eval, 'foo$2') }.to raise_error(/Unsafe expression/)
+    end
+
+    it 'evaluates safe expression' do
+      expect(calculator.send(:safe_eval, '2 + 2')).to eq(4)
+    end
+
+    it 'extracts math expression via match fallback' do
+      expr = calculator.send(:extract_math_expression, '2 + 2 * 2')
+      expect(expr).to eq('2 + 2 * 2')
+    end
+
+    it 'returns empty string if no math expression found' do
+      expr = calculator.send(:extract_math_expression, 'no math here')
+      expect(expr).to eq("")
+    end
+
+    it 'returns quoted non-math expression' do
+      expr = calculator.send(:extract_quoted_expression, 'Calculate "hello world"')
+      expect(expr).to eq('hello world')
+    end
+
+    it 'returns empty string if no simple math expression' do
+      expr = calculator.send(:extract_simple_math_expression, 'just text')
+      expect(expr).to eq("")
+    end
+
+    it 'returns empty string if no function call' do
+      expr = calculator.send(:extract_function_call, 'calculate nothing')
+      expect(expr).to eq("")
+    end
+
+    it 'returns empty string if keyword but no expression' do
+      expr = calculator.send(:extract_keyword_expression, 'sum')
+      expect(expr).to eq("")
+    end
+
+    it 'returns empty string for expression that cleans to empty' do
+      expr = calculator.send(:clean_expression, 'the result')
+      expect(expr).to eq("")
+    end
+
+    it 'extract_expression: returns quoted expression if math fails' do
+      allow(calculator).to receive(:extract_math_expression).and_return("")
+      expr = calculator.send(:extract_expression, 'Calculate "2 + 2"')
+      expect(expr).to eq('2 + 2')
+    end
+
+    it 'extract_expression: returns simple math expression if math and quoted fail' do
+      allow(calculator).to receive(:extract_math_expression).and_return("")
+      allow(calculator).to receive(:extract_quoted_expression).and_return("")
+      expr = calculator.send(:extract_expression, '2 + 2')
+      expect(expr).to eq('2 + 2')
+    end
+
+    it 'extract_expression: returns function call if previous strategies fail' do
+      allow(calculator).to receive(:extract_math_expression).and_return("")
+      allow(calculator).to receive(:extract_quoted_expression).and_return("")
+      allow(calculator).to receive(:extract_simple_math_expression).and_return("")
+      expr = calculator.send(:extract_expression, 'sqrt(16)')
+      expect(expr).to eq('sqrt(16)')
+    end
+
+    it 'extract_expression: returns keyword expression if all previous fail' do
+      allow(calculator).to receive(:extract_math_expression).and_return("")
+      allow(calculator).to receive(:extract_quoted_expression).and_return("")
+      allow(calculator).to receive(:extract_simple_math_expression).and_return("")
+      allow(calculator).to receive(:extract_function_call).and_return("")
+      expr = calculator.send(:extract_expression, 'sum 2 + 2')
+      expect(expr).to eq('2 + 2')
+    end
+
+    it 'extract_expression: returns empty string if all strategies fail' do
+      allow(calculator).to receive(:extract_math_expression).and_return("")
+      allow(calculator).to receive(:extract_quoted_expression).and_return("")
+      allow(calculator).to receive(:extract_simple_math_expression).and_return("")
+      allow(calculator).to receive(:extract_function_call).and_return("")
+      allow(calculator).to receive(:extract_keyword_expression).and_return("")
+      expr = calculator.send(:extract_expression, 'no math here')
+      expect(expr).to eq("")
+    end
+  end
+end
+
+RSpec.describe LLMChain::Tools do
   describe LLMChain::Tools::WebSearch do
     let(:web_search) { described_class.new }
 

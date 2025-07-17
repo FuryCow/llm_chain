@@ -4,6 +4,7 @@ require 'json'
 module LLMChain
   module Clients
     class Qwen < OllamaBase
+      class InvalidModelVersion < StandardError; end unless defined?(InvalidModelVersion)
       # Доступные версии моделей
       MODEL_VERSIONS = {
         qwen: {
@@ -47,7 +48,11 @@ module LLMChain
           reasoning: /<reasoning>.*?<\/reasoning>\s*/mi
         },
         qwen: {
-          system: /<\|system\|>.*?<\|im_end\|>\s*/mi
+          system: /<\|system\|>.*?<\|im_end\|>\s*/mi,
+          qwen_meta: /<qwen_meta>.*?<\/qwen_meta>\s*/mi
+        },
+        qwen2: {
+          qwen_meta: /<qwen_meta>.*?<\/qwen_meta>\s*/mi
         },
         qwen3: {
           qwen_meta: /<qwen_meta>.*?<\/qwen_meta>\s*/mi
@@ -55,11 +60,9 @@ module LLMChain
       }.freeze
 
       def initialize(model: nil, base_url: nil, **options)
-        model ||= detect_default_model
-
+        model ||= detect_default_model_from(model)
         @model = model
         validate_model_version(@model)
-
         super(
           model: @model,
           base_url: base_url,
@@ -105,18 +108,22 @@ module LLMChain
 
       private
 
+      def model_version_for(model)
+        return :qwen3 if model&.start_with?('qwen3:')
+        return :qwen2 if model&.start_with?('qwen2:')
+        :qwen
+      end
+
       def model_version
-        if @model.start_with?('qwen3:')
-          :qwen3
-        elsif @model.start_with?('qwen2:')
-          :qwen2
-        else
-          :qwen
-        end
+        model_version_for(@model)
+      end
+
+      def detect_default_model_from(model)
+        MODEL_VERSIONS[model_version_for(model)][:default]
       end
 
       def detect_default_model
-        MODEL_VERSIONS[model_version][:default]
+        detect_default_model_from(nil)
       end
 
       def validate_model_version(model)
@@ -151,9 +158,14 @@ module LLMChain
 
       def clean_response(text)
         tags = INTERNAL_TAGS[:common].merge(INTERNAL_TAGS[model_version] || {})
-        tags.values.reduce(text) do |processed, regex|
-          processed.gsub(regex, '')
-        end.gsub(/\n{3,}/, "\n\n").strip
+        # Добавляем <|system|>...<|im_end|> для qwen3, если не было
+        if model_version == :qwen3 && !tags.key?(:system)
+          tags[:system] = /<\|system\|>.*?<\|im_end\|>\s*/mi
+        end
+        processed = tags.values.reduce(text) do |acc, regex|
+          acc.gsub(regex, "\n")
+        end
+        processed.gsub(/\n{2,}/, "\n\n").strip
       end
     end
   end

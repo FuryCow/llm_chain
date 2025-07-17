@@ -55,6 +55,8 @@ module LLMChain
           def parse_response(response)
             data = JSON.parse(response.body)
             data['embedding'] or raise EmbeddingError, "No embedding in response"
+          rescue JSON::ParserError => e
+            raise EmbeddingError, "Invalid JSON: #{e.message}"
           end
 
           class EmbeddingError < StandardError; end

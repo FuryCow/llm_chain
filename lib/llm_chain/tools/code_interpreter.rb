@@ -55,10 +55,17 @@ module LLMChain
 
       def call(prompt, context: {})
         code = extract_code(prompt)
-        language = detect_language(code, prompt)
+        language = context[:language]&.to_s || detect_language(code, prompt)
         
-        return "No code found to execute" if code.empty?
-        return "Unsupported language: #{language}" unless @allowed_languages.include?(language)
+        return { error: "No code found to execute" } if code.empty?
+        unless @allowed_languages.include?(language)
+          return {
+            code: code,
+            language: language,
+            error: "Language '#{language}' is not supported",
+            formatted: "Cannot execute: Language '#{language}' is not supported"
+          }
+        end
         
         begin
           if safe_to_execute?(code)

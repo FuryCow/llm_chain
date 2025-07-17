@@ -4,6 +4,7 @@ require 'json'
 module LLMChain
   module Clients
     class Gemma3 < OllamaBase
+      class InvalidModelVersion < StandardError; end unless const_defined?(:InvalidModelVersion)
       # Доступные версии моделей Gemma3
       MODEL_VERSIONS = {
         gemma3: {
@@ -135,9 +136,10 @@ module LLMChain
 
       def clean_response(text)
         tags = INTERNAL_TAGS[:common].merge(INTERNAL_TAGS[model_version] || {})
-        tags.values.reduce(text) do |processed, regex|
-          processed.gsub(regex, '')
-        end.gsub(/\n{3,}/, "\n\n").strip
+        processed = tags.values.reduce(text) do |acc, regex|
+          acc.gsub(regex, "\n")
+        end
+        processed.gsub(/\n{2,}/, "\n\n").strip
       end
     end
   end

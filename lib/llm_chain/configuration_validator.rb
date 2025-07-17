@@ -62,6 +62,8 @@ module LLMChain
       else
         add_warning("Unknown model type: #{model}. Proceeding with default settings.")
       end
+
+      validate_client_availability!(model)
     end
 
     def validate_openai_requirements!(model)
@@ -97,6 +99,8 @@ module LLMChain
         else
           add_warning("OpenAI API returned status #{response.code}. Service may be temporarily unavailable.")
         end
+      rescue ValidationError
+        raise
       rescue => e
         add_warning("Cannot verify OpenAI API availability: #{e.message}")
       end
@@ -300,8 +304,8 @@ module LLMChain
 
     def check_python_availability
       begin
-        output = `python3 --version 2>&1`
-        $?.success? && output.include?('Python')
+        out, status = Open3.capture2('python3 --version')
+        status.success? && out.include?('Python')
       rescue
         false
       end
@@ -309,8 +313,8 @@ module LLMChain
 
     def check_node_availability
       begin
-        output = `node --version 2>&1`
-        $?.success? && output.include?('v')
+        out, status = Open3.capture2('node --version')
+        status.success? && out.include?('v')
       rescue
         false
       end
@@ -318,9 +322,8 @@ module LLMChain
 
     def check_internet_connectivity
       begin
-        require 'socket'
-        Socket.tcp("8.8.8.8", 53, connect_timeout: 3) {}
-        true
+        resp = Net::HTTP.get_response(URI('https://www.google.com'))
+        resp.code == '200'
       rescue
         false
       end
@@ -335,6 +338,7 @@ module LLMChain
     end
 
     def add_warning(message)
+      @warnings ||= []
       @warnings << message
     end
 

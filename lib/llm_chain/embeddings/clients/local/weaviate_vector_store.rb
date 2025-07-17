@@ -35,12 +35,12 @@ module LLMChain
 
           # Поиск по семантическому сходству
           def semantic_search(query, limit: 3, certainty: 0.7)
-            near_vector = "{ vector: #{@embedder.embed(query)}, certainty: 0.7 }"
+            near_vector = "{ vector: #{@embedder.embed(query)}, certainty: #{certainty} }"
 
             @client.query.get(
                 class_name: @class_name,
                 fields: "content metadata text",
-                limit: "1",
+                limit: limit.to_s,
                 offset: "1",
                 near_vector: near_vector,
             )
