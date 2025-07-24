@@ -21,6 +21,7 @@ require_relative "llm_chain/tools/date_time"
 require_relative "llm_chain/embeddings/clients/local/weaviate_vector_store"
 require_relative "llm_chain/embeddings/clients/local/weaviate_retriever"
 require_relative "llm_chain/embeddings/clients/local/ollama_client"
+require_relative "llm_chain/agents"
 
 module LLMChain
   # Exception classes

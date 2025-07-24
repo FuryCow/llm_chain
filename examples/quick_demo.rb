@@ -5,7 +5,6 @@ require_relative '../lib/llm_chain'
 puts "🦾 LLMChain v#{LlmChain::VERSION} - Quick Demo"
 puts "=" * 50
 
-# 1. Simple chain without tools
 puts "\n1. 💬 Simple conversation"
 begin
   simple_chain = LLMChain::Chain.new(
@@ -20,19 +19,16 @@ rescue => e
   puts "💡 Make sure Ollama is running and qwen3:1.7b model is downloaded"
 end
 
-# 2. Calculator
 puts "\n2. 🧮 Built-in calculator"
 calculator = LLMChain::Tools::Calculator.new
 result = calculator.call("Calculate 25 * 8 + 15")
 puts "📊 #{result[:formatted]}"
 
-# 3. Code interpreter
 puts "\n3. 💻 Code interpreter"
 begin
   interpreter = LLMChain::Tools::CodeInterpreter.new
   ruby_code = <<~RUBY_CODE
     ```ruby
-    # Simple program
     data = [1, 2, 3, 4, 5]
     total = data.sum
     puts "Sum of numbers: \#{total}"
@@ -54,7 +50,6 @@ rescue => e
   puts "❌ Interpreter error: #{e.message}"
 end
 
-# 4. Web search (may not work without internet)
 puts "\n4. 🔍 Web search"
 search = LLMChain::Tools::WebSearch.new
 search_result = search.call("Ruby programming language")
@@ -68,7 +63,6 @@ else
   puts "❌ Search failed or no results found"
 end
 
-# 5. Chain with tools
 puts "\n5. 🛠️ Chain with automatic tools"
 begin
   tool_manager = LLMChain::Tools::ToolManagerFactory.create_default_toolset

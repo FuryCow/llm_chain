@@ -6,15 +6,10 @@
 
 **A powerful Ruby library for working with Large Language Models (LLMs) with intelligent tool system**
 
-LLMChain is a Ruby analog of LangChain, providing a unified interface for interacting with various LLMs, built-in tool system, and RAG (Retrieval-Augmented Generation) support.
+**LLMChain** is a powerful Ruby library that brings the magic of Large Language Models to your applications. Think of it as your AI Swiss Army knife - whether you need to chat with models, execute code, search the web, or build intelligent agents, LLMChain has you covered.
 
-## 🎉 What's New in v0.5.3
+Built with Ruby's elegance and designed for developers who want to harness AI capabilities without the complexity, LLMChain provides a unified interface for OpenAI, Ollama, Qwen, and other leading LLMs. It comes packed with intelligent tools, smart agents, and RAG capabilities out of the box.
 
-* 🖥️ **New CLI executable** `llm-chain`
-  * `chat` – ask a one-off question from your shell
-  * `repl` – interactive session with conversation memory and helper commands (`/help`, `/mem clear`, `/tools list`)
-  * `diagnose` – run the built-in environment health-check
-  * `tools list` – inspect available tools
 * 🔄 **Bundler-aware loading** – CLI detects if it’s executed inside the gem repo and avoids version clashes with external Gemfiles.
 
 That’s all you need to start talking to LLMs straight from the terminal. See the **Command-line Interface** section below for usage examples.
@@ -22,8 +17,9 @@ That’s all you need to start talking to LLMs straight from the terminal. See t
 ## ✨ Key Features
 
 - 🤖 **Unified API** for multiple LLMs (OpenAI, Ollama, Qwen, LLaMA2, Gemma)
+- 🧠 **Smart Agents** - CompositeAgent, ReActAgent, PlannerAgent for complex reasoning
 - 🛠️ **Intelligent tool system** with automatic selection
-- 🧮 **Built-in tools**: Calculator, web search, code interpreter
+- 🧮 **Built-in tools**: Calculator, web search, code interpreter, DateTime
 - 🔍 **RAG-ready** with vector database integration
 - 💾 **Flexible memory system** (Array, Redis)
 - 🌊 **Streaming output** for real-time responses
@@ -197,6 +193,31 @@ calculator = LLMChain::Tools::Calculator.new
 result = calculator.call("Find square root of 144")
 puts result[:formatted]
 # Output: sqrt(144) = 12.0
+```
+
+#### 🕐 DateTime (Enhanced in v0.6.0)
+```ruby
+datetime = LLMChain::Tools::DateTime.new
+
+# Current time
+result = datetime.call("What time is it?")
+puts result[:formatted]
+# Output: 2025-07-24 15:30:45 UTC
+
+# Time in specific timezone
+result = datetime.call("What time is it in New York?")
+puts result[:formatted]
+# Output: 2025-07-24 11:30:45 EDT
+
+# Time in Europe
+result = datetime.call("What time is it in Europe/Moscow?")
+puts result[:formatted]
+# Output: 2025-07-24 18:30:45 MSK
+
+# JSON input support
+result = datetime.call('{"timezone": "Asia/Tokyo"}')
+puts result[:formatted]
+# Output: 2025-07-25 00:30:45 JST
 ```
 
 #### 🌐 Web Search
@@ -627,6 +648,68 @@ code_result = code_runner.call("puts 'Hello World!'")
 
 ## 📚 Usage Examples
 
+### Smart Agents (v0.6.0+)
+
+#### CompositeAgent - Intelligent Planning and Execution
+
+```ruby
+require 'llm_chain'
+
+# Create a smart composite agent
+agent = LLMChain::Agents::AgentFactory.create(
+  type: :composite,
+  model: "qwen3:1.7b",
+  max_iterations: 3
+)
+
+# Simple task - direct execution (no planning overhead)
+result = agent.run("Calculate 15 * 7 + 32")
+puts result[:final_answer]  # "137"
+puts result[:approach]      # "direct"
+
+# Complex task - intelligent planning
+result = agent.run("Find the current president of the United States and the capital of France", stream: true) do |step|
+  if step[:type] == "step_completion"
+    puts "Step #{step[:step]}/#{step[:total_steps]}: #{step[:current_step]}"
+    puts "Quality: #{step[:validated_answer][:quality_score]}/10"
+  end
+end
+
+puts result[:final_answer]
+# "Joe Biden\n\nParis\n\nSummary: The current president of the United States is Joe Biden, and the capital of France is Paris."
+```
+
+#### ReActAgent - Reasoning and Acting
+
+```ruby
+# Create a ReAct agent for complex reasoning tasks
+react_agent = LLMChain::Agents::AgentFactory.create(
+  type: :react,
+  model: "qwen3:1.7b",
+  max_iterations: 5
+)
+
+# Agent will use tools intelligently
+result = react_agent.run("What time is it in New York and what's the weather like?")
+puts result[:final_answer]
+# Uses DateTime tool first, then WebSearch for weather
+```
+
+#### PlannerAgent - Task Decomposition
+
+```ruby
+# Create a planner agent for complex task breakdown
+planner_agent = LLMChain::Agents::AgentFactory.create(
+  type: :planner,
+  model: "qwen3:1.7b"
+)
+
+# Decompose complex task into steps
+result = planner_agent.run("Plan a vacation to Japan")
+puts result[:planning_result][:steps]
+# ["Research popular destinations in Japan", "Check visa requirements", "Find flights", "Book accommodations", "Plan itinerary"]
+```
+
 ### Chatbot with Tools
 
 ```ruby
@@ -713,6 +796,10 @@ bundle exec bin/console
 ### Main Classes
 
 - `LLMChain::Chain` - Main class for creating chains
+- `LLMChain::Agents::AgentFactory` - Factory for creating smart agents
+- `LLMChain::Agents::CompositeAgent` - Intelligent planning and execution
+- `LLMChain::Agents::ReActAgent` - Reasoning and acting agent
+- `LLMChain::Agents::PlannerAgent` - Task decomposition agent
 - `LLMChain::Tools::ToolManager` - Tool management
 - `LLMChain::Memory::Array/Redis` - Memory systems
 - `LLMChain::Clients::*` - Clients for various LLMs
@@ -741,17 +828,20 @@ chain.ask(prompt, stream: false, rag_context: false, rag_options: {})
 - [x] Enhanced error handling with retry logic
 - [x] Improved code extraction and tool stability
 
-### v0.6.0 (Next)
-- [ ] ReAct agents and multi-step reasoning
+### v0.6.0 ✅ Completed
+- [x] Smart CompositeAgent with intelligent planning
+- [x] Enhanced ReActAgent with better tool integration
+- [x] Improved DateTime tool with timezone support
+- [x] Better error handling and result validation
+- [x] Streamlined examples and improved test coverage
+
+### v0.7.0 (Next)
 - [ ] More tools (file system, database queries)
 - [ ] Claude integration
 - [ ] Advanced logging and metrics
-
-### v0.7.0
 - [ ] Multi-agent systems
 - [ ] Task planning and workflows
 - [ ] Web interface for testing
-- [ ] Metrics and monitoring
 
 ### v1.0.0
 - [ ] Stable API with semantic versioning

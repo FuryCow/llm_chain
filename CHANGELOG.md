@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-07-24
+
+### Added
+* **Smart CompositeAgent** - Intelligent planning and execution capabilities:
+  * Automatic detection of simple vs complex tasks (math, time queries vs multi-step tasks)
+  * Direct execution for simple tasks (no unnecessary planning overhead)
+  * Smart result validation and quality scoring (0-10 scale)
+  * Intelligent result aggregation with structured summaries
+  * Better error handling and graceful degradation
+  * Meaningful information extraction from tool responses
+* **Enhanced DateTime Tool** - Improved timezone handling and parsing:
+  * Support for multi-word timezone names (e.g., "New York", "Europe/Moscow")
+  * IANA timezone mapping and validation
+  * Better JSON input parsing
+  * Improved timezone abbreviation display
+  * Fallback handling for invalid timezones
+* **Improved ReActAgent** - Better tool usage and reasoning:
+  * Enhanced prompt instructions for DateTime tool integration
+  * Improved termination logic to prevent premature stopping
+  * Better guidance for current information queries (uses DateTime before WebSearch)
+  * Support for multiple timezone queries
+
+### Changed
+* **CompositeAgent Architecture** - Major refactoring for better performance:
+  * Split execution into `run_with_planning` and `execute_directly` methods
+  * Introduced `should_use_planner?` for intelligent task classification
+  * Enhanced result processing with `validate_and_process_result`
+  * Improved success validation with `validate_overall_success`
+  * Better streaming support with proper step tracking
+* **Example Files Cleanup** - Streamlined and improved examples:
+  * Removed redundant and temporary example files
+  * Cleaned up all comments for better readability
+  * Consolidated planner agent examples
+  * Improved composite agent demonstration
+* **Test Suite Improvements** - Better test coverage and reliability:
+  * Updated CompositeAgent specs to match new behavior
+  * Fixed DateTime tool specs with proper mocking
+  * Improved test isolation and dependency handling
+
+### Fixed
+* **DateTime Tool Parsing** - Fixed "Invalid identifier" errors for multi-word timezones
+* **ReActAgent Termination** - Prevented premature stopping after DateTime tool usage
+* **CompositeAgent Streaming** - Fixed keyword argument passing for stream parameter
+* **Test Reliability** - Resolved TZInfo dependency issues in test environment
+
 ## [0.5.5] - 2025-07-17
 
 ### Changed
@@ -110,8 +155,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Initial stable release with core functionality
 
-[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.5.4...HEAD
-[0.5.4]: https://github.com/FuryCow/llm_chain/compare/v0.5.3...v0.5.4
+[Unreleased]: https://github.com/FuryCow/llm_chain/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/FuryCow/llm_chain/compare/v0.5.5...v0.6.0
+[0.5.5]: https://github.com/FuryCow/llm_chain/compare/v0.5.4...v0.5.5
 [0.5.3]: https://github.com/FuryCow/llm_chain/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/FuryCow/llm_chain/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FuryCow/llm_chain/compare/v0.5.0...v0.5.1

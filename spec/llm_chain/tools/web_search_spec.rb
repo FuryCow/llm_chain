@@ -59,6 +59,8 @@ RSpec.describe LLMChain::Tools::WebSearch do
 
   describe "#call" do
     it "returns fallback if no API key" do
+      allow(ENV).to receive(:[]).and_return(nil)
+      
       tool = described_class.new(api_key: nil)
       result = tool.call("search for Ruby")
       expect(result).to be_a(Hash)
@@ -322,6 +324,9 @@ RSpec.describe LLMChain::Tools::WebSearch do
 
   describe "#search_google_results" do
     it "returns [] if no API key" do
+      # Мокаем все возможные обращения к ENV
+      allow(ENV).to receive(:[]).and_return(nil)
+      
       tool = described_class.new(api_key: nil)
       expect(tool.send(:search_google_results, "Ruby", 3)).to eq([])
     end
