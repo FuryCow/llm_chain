@@ -18,6 +18,8 @@ module LLMChain
         Clients::Gemma3
       when /deepseek-coder-v2/
         Clients::DeepseekCoderV2
+      when /mistral|mixtral/
+        Clients::Mistral
       else
         raise UnknownModelError, "Unknown model: #{model}"
       end

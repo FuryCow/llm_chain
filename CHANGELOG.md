@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-01-27
+
+### Added
+* **Mistral Client** - Support for Mistral models via Ollama:
+  * Available variants: `mistral:latest`, `mixtral:8x7b`, `mistral-small:latest`, `mistral-medium:latest`, `mistral-large:latest`
+  * Optimized settings for different model types
+  * Integrated with existing tool ecosystem and Chain functionality
+  * Full compatibility with ClientRegistry and streaming support
+  * Lean implementation following SOLID principles
+  * YARD documentation with English examples
+
 ## [0.6.0] - 2025-07-24
 
 ### Added

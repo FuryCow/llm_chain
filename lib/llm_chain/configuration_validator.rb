@@ -57,7 +57,7 @@ module LLMChain
       case model.to_s
       when /^gpt/
         validate_openai_requirements!(model)
-      when /qwen|llama|gemma|deepseek-coder-v2/
+      when /qwen|llama|gemma|deepseek-coder-v2|mistral|mixtral/
         validate_ollama_requirements!(model)
       else
         add_warning("Unknown model type: #{model}. Proceeding with default settings.")
@@ -118,7 +118,7 @@ module LLMChain
 
     def validate_client_availability!(model)
       case model.to_s
-      when /qwen|llama|gemma/
+      when /qwen|llama|gemma|mistral|mixtral/
         unless check_ollama_availability
           raise ValidationError, "Ollama server is not running for model '#{model}'"
         end

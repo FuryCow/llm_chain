@@ -376,7 +376,7 @@ tool_manager.register_tool(weather)
 | **LLaMA2/3** | Ollama | ✅ Supported | 7B, 13B, 70B |
 | **Gemma** | Ollama | ✅ Supported | 2B, 7B, 9B, 27B |
 | **Deepseek-Coder-V2** | Ollama | ✅ Supported | 16B, 236B - Code specialist |
-| **Mistral/Mixtral** | Ollama | 🔄 In development | 7B, 8x7B |
+| **Mistral/Mixtral** | Ollama | ✅ Supported | 7B, 8x7B, Tiny, Small, Medium, Large |
 | **Claude** | Anthropic | 🔄 Planned | Haiku, Sonnet, Opus |
 | **Command R+** | Cohere | 🔄 Planned | Optimized for RAG |
 
@@ -402,9 +402,18 @@ llama_chain = LLMChain::Chain.new(
 # Deepseek-Coder-V2 for code tasks
 deepseek_chain = LLMChain::Chain.new(model: "deepseek-coder-v2:16b")
 
+# Mistral via Ollama
+mistral_chain = LLMChain::Chain.new(model: "mistral:7b")
+
+# Mixtral for complex tasks
+mixtral_chain = LLMChain::Chain.new(model: "mixtral:8x7b")
+
 # Direct client usage
 deepseek_client = LLMChain::Clients::DeepseekCoderV2.new(model: "deepseek-coder-v2:16b")
 response = deepseek_client.chat("Create a Ruby method to sort an array")
+
+mistral_client = LLMChain::Clients::Mistral.new
+response = mistral_client.chat("Explain quantum computing in simple terms")
 ```
 
 ## 💾 Memory System
